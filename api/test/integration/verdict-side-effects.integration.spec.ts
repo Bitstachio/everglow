@@ -29,8 +29,8 @@ import {
   buildEventInvite,
   buildOrganizerAccess,
   buildOtherUserWithDetails,
-  buildParticipantAccess,
-  buildTargetParticipantAccess,
+  buildContributorAccess,
+  buildTargetContributorAccess,
   eventWithCallerAccess,
 } from "./helpers/events.fixtures";
 import { expectApiError } from "./helpers/expect-api-error";
@@ -94,7 +94,7 @@ describe("Verdict side effects (integration)", () => {
     prisma.$queryRaw.mockResolvedValue([]);
     prisma.photo.count.mockResolvedValue(1);
     prisma.photo.findMany.mockResolvedValue([]);
-    prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
+    prisma.eventAccess.findUnique.mockResolvedValue(buildTargetContributorAccess());
     prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
     prisma.eventAccess.count.mockResolvedValue(1);
     s3Service.deleteObject.mockReset().mockResolvedValue(undefined);
@@ -176,7 +176,7 @@ describe("Verdict side effects (integration)", () => {
       prisma.report.updateMany.mockResolvedValue({ count: 1 });
 
       for (const reporter of reporters) {
-        prisma.eventAccess.findUnique.mockResolvedValue(buildParticipantAccess({ userId: reporter }));
+        prisma.eventAccess.findUnique.mockResolvedValue(buildContributorAccess({ userId: reporter }));
         await request(httpServer)
           .delete(api(`events/${TEST_EVENT_ID}/participants/${reporter}`))
           .set(authHeader())
@@ -206,7 +206,7 @@ describe("Verdict side effects (integration)", () => {
 
     it("only OPEN reports count toward the hide threshold, so closing theirs shows the photo again", async () => {
       prisma.event.findUnique.mockResolvedValue({
-        ...eventWithAccess([buildParticipantAccess({ userId: TEST_OTHER_USER_ID })]),
+        ...eventWithAccess([buildContributorAccess({ userId: TEST_OTHER_USER_ID })]),
       } as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
@@ -228,7 +228,7 @@ describe("Verdict side effects (integration)", () => {
       buildReport({ status: ReportStatus.DISMISSED, closedReason: "DISMISSED", resolvedAt: new Date(), ...overrides });
 
     it("refuses the same reporter on the same photo with 409 REPORT_RECENTLY_DISMISSED", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
       prisma.report.findFirst.mockResolvedValue(dismissed());
 
       const response = await request(httpServer)
@@ -252,7 +252,7 @@ describe("Verdict side effects (integration)", () => {
     });
 
     it("refuses the same reporter on the same member too", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]) as never);
       prisma.report.findFirst.mockResolvedValue(dismissed({ targetType: ReportTargetType.MEMBER, photoId: null }));
 
       const response = await request(httpServer)
@@ -266,7 +266,7 @@ describe("Verdict side effects (integration)", () => {
     });
 
     it("still takes a child-safety report, which only the platform judges", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
       prisma.report.findFirst.mockResolvedValue(dismissed());
       prisma.report.createManyAndReturn.mockResolvedValue([
         buildReport({ reason: ReportReason.CHILD_SAFETY, queue: "PLATFORM" }),
@@ -282,7 +282,7 @@ describe("Verdict side effects (integration)", () => {
 
   it("two reports by one user at the same moment give one row, and both get it back", async () => {
     const report = buildReport({ reason: ReportReason.SPAM });
-    prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+    prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
     // The partial unique index lets one insert through; the other is skipped.
     prisma.report.createManyAndReturn.mockResolvedValueOnce([report]).mockResolvedValueOnce([]);
     prisma.report.findFirst.mockImplementation(((args: Prisma.ReportFindFirstArgs) =>
@@ -321,7 +321,7 @@ describe("Verdict side effects (integration)", () => {
     });
 
     it("is stored trimmed, newlines inside kept", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
 
       await request(httpServer)
@@ -347,7 +347,7 @@ describe("Verdict side effects (integration)", () => {
 
     it("refuses to remove the event's only organizer with 422 LAST_ORGANIZER, changing nothing", async () => {
       prisma.eventAccess.findUnique.mockResolvedValue(
-        buildParticipantAccess({ userId: TEST_TARGET_USER_ID, accessLevel: AccessLevel.ORGANIZER }),
+        buildContributorAccess({ userId: TEST_TARGET_USER_ID, accessLevel: AccessLevel.ORGANIZER }),
       );
       prisma.eventAccess.count.mockResolvedValue(1);
 

@@ -16,7 +16,7 @@ describe("definePhotoAbilities", () => {
   };
 
   const photoWithAccess = (
-    accessLevel: "ORGANIZER" | "PARTICIPANT" | "VIEWER",
+    accessLevel: "ORGANIZER" | "CONTRIBUTOR" | "VIEWER",
     { accessUserId = userId, addedById = userId, status = "READY" as "READY" | "PENDING" } = {},
   ) =>
     subject(PHOTO_SUBJECT, {
@@ -39,11 +39,11 @@ describe("definePhotoAbilities", () => {
   });
 
   describe("read", () => {
-    it("allows any event member to read photos (organizer, participant, viewer)", () => {
+    it("allows any event member to read photos (organizer, contributor, viewer)", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
       expect(ability.can(PHOTO_ACTIONS.READ, photoWithAccess("ORGANIZER"))).toBe(true);
-      expect(ability.can(PHOTO_ACTIONS.READ, photoWithAccess("PARTICIPANT"))).toBe(true);
+      expect(ability.can(PHOTO_ACTIONS.READ, photoWithAccess("CONTRIBUTOR"))).toBe(true);
       expect(ability.can(PHOTO_ACTIONS.READ, photoWithAccess("VIEWER"))).toBe(true);
     });
 
@@ -55,11 +55,11 @@ describe("definePhotoAbilities", () => {
   });
 
   describe("create", () => {
-    it("allows organizers and participants to upload photos", () => {
+    it("allows organizers and contributors to upload photos", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
       expect(ability.can(PHOTO_ACTIONS.CREATE, photoWithAccess("ORGANIZER"))).toBe(true);
-      expect(ability.can(PHOTO_ACTIONS.CREATE, photoWithAccess("PARTICIPANT"))).toBe(true);
+      expect(ability.can(PHOTO_ACTIONS.CREATE, photoWithAccess("CONTRIBUTOR"))).toBe(true);
     });
 
     it("denies upload for viewers", () => {
@@ -87,14 +87,14 @@ describe("definePhotoAbilities", () => {
     it("allows uploaders to delete their own photos", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
-      expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("PARTICIPANT", { addedById: userId }))).toBe(true);
+      expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("CONTRIBUTOR", { addedById: userId }))).toBe(true);
       expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("VIEWER", { addedById: userId }))).toBe(true);
     });
 
-    it("denies participants and viewers deleting photos uploaded by others", () => {
+    it("denies contributors and viewers deleting photos uploaded by others", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
-      expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("PARTICIPANT", { addedById: otherUserId }))).toBe(false);
+      expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("CONTRIBUTOR", { addedById: otherUserId }))).toBe(false);
       expect(ability.can(PHOTO_ACTIONS.DELETE, photoWithAccess("VIEWER", { addedById: otherUserId }))).toBe(false);
     });
 
@@ -137,7 +137,7 @@ describe("definePhotoAbilities", () => {
       expect(
         ability.can(
           PHOTO_ACTIONS.DELETE,
-          photoWithAccess("PARTICIPANT", { addedById: otherUserId, status: "PENDING" }),
+          photoWithAccess("CONTRIBUTOR", { addedById: otherUserId, status: "PENDING" }),
         ),
       ).toBe(false);
       expect(

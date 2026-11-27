@@ -210,7 +210,7 @@ describe("AccountDeletionPrepService", () => {
 
       expect(prisma.eventAccess.findFirst).toHaveBeenCalledWith({
         where: { eventId: sharedEventId, userId: { not: userId }, user: { deletionStartedAt: null } },
-        // Participants before viewers, then oldest membership: deterministic, not random.
+        // Contributors before viewers, then oldest membership: deterministic, not random.
         orderBy: [{ accessLevel: "asc" }, { createdAt: "asc" }],
         select: { id: true },
       });

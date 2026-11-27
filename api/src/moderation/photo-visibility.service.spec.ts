@@ -72,7 +72,7 @@ describe("PhotoVisibilityService", () => {
       const noPhotos = { id: { in: [] } };
       const pastCloseTime = new Date(Date.now() - 60 * 1000);
 
-      it.each([AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+      it.each([AccessLevel.ORGANIZER, AccessLevel.CONTRIBUTOR, AccessLevel.VIEWER])(
         "shows a %s no photo once the close time has passed, and asks the database nothing",
         async (accessLevel) => {
           const event = { ...eventFor(accessLevel), galleryClosesAt: pastCloseTime };
@@ -82,7 +82,7 @@ describe("PhotoVisibilityService", () => {
         },
       );
 
-      it.each([AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT])(
+      it.each([AccessLevel.ORGANIZER, AccessLevel.CONTRIBUTOR])(
         "shows a %s no photo of a suspended event",
         async (accessLevel) => {
           const event = { ...eventFor(accessLevel), suspendedAt: now };
@@ -123,7 +123,7 @@ describe("PhotoVisibilityService", () => {
       expect(prisma.report.groupBy).not.toHaveBeenCalled();
     });
 
-    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER])("applies every filter to a %s", async (accessLevel) => {
+    it.each([AccessLevel.CONTRIBUTOR, AccessLevel.VIEWER])("applies every filter to a %s", async (accessLevel) => {
       mockPhotosOverThreshold([]);
 
       const where = await service.whereVisibleTo(callerId, eventFor(accessLevel));
@@ -134,7 +134,7 @@ describe("PhotoVisibilityService", () => {
     it("hides photos the caller has an OPEN report on, and only OPEN ones", async () => {
       mockPhotosOverThreshold([]);
 
-      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.CONTRIBUTOR));
 
       expect(where.AND).toContainEqual({ reports: { none: { reporterId: callerId, status: "OPEN" } } });
     });
@@ -142,7 +142,7 @@ describe("PhotoVisibilityService", () => {
     it("hides a photo with a single OPEN report for nudity or violence, before any threshold", async () => {
       mockPhotosOverThreshold([]);
 
-      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.CONTRIBUTOR));
 
       expect(where.AND).toContainEqual({
         reports: {
@@ -157,7 +157,7 @@ describe("PhotoVisibilityService", () => {
     it("hides photos whose OPEN reports reached the threshold, found with one grouped query for the event", async () => {
       mockPhotosOverThreshold([photoId]);
 
-      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.CONTRIBUTOR));
 
       expect(prisma.report.groupBy).toHaveBeenCalledTimes(1);
       expect(prisma.report.groupBy).toHaveBeenCalledWith({
@@ -172,7 +172,7 @@ describe("PhotoVisibilityService", () => {
     it("lowers the threshold to 2 in an event too small to ever collect 3 reports", async () => {
       mockPhotosOverThreshold([]);
 
-      await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT, 3));
+      await service.whereVisibleTo(callerId, eventFor(AccessLevel.CONTRIBUTOR, 3));
 
       expect(prisma.report.groupBy).toHaveBeenCalledWith(
         expect.objectContaining({ having: { photoId: { _count: { gte: 2 } } } }),
@@ -182,7 +182,7 @@ describe("PhotoVisibilityService", () => {
     it("hides photos of uploaders the caller blocked and of uploaders who blocked the caller", async () => {
       mockPhotosOverThreshold([]);
 
-      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.PARTICIPANT));
+      const where = await service.whereVisibleTo(callerId, eventFor(AccessLevel.CONTRIBUTOR));
 
       expect(where.AND).toContainEqual({
         NOT: {
@@ -230,7 +230,7 @@ describe("PhotoVisibilityService", () => {
 
     it("counts each event's photos with the filter its caller gets, in a fixed number of queries", async () => {
       prisma.event.findMany.mockResolvedValue([
-        asEvent(eventId, AccessLevel.PARTICIPANT),
+        asEvent(eventId, AccessLevel.CONTRIBUTOR),
         asEvent(hostedId, AccessLevel.ORGANIZER),
       ] as never);
       mockPhotosOverThreshold([photoId]);
@@ -257,7 +257,7 @@ describe("PhotoVisibilityService", () => {
 
     it("applies each event's own report threshold when small and large events are counted together", async () => {
       prisma.event.findMany.mockResolvedValue([
-        asEvent(eventId, AccessLevel.PARTICIPANT, { _count: { eventAccesses: 3 } }),
+        asEvent(eventId, AccessLevel.CONTRIBUTOR, { _count: { eventAccesses: 3 } }),
         asEvent(hostedId, AccessLevel.VIEWER),
       ] as never);
       prisma.report.groupBy.mockResolvedValue([
@@ -279,7 +279,7 @@ describe("PhotoVisibilityService", () => {
     it("counts 0 for a closed or suspended gallery without asking for its photos", async () => {
       prisma.event.findMany.mockResolvedValue([
         asEvent(closedId, AccessLevel.ORGANIZER, { galleryClosesAt: new Date(Date.now() - 60 * 1000) }),
-        asEvent(eventId, AccessLevel.PARTICIPANT, { suspendedAt: now }),
+        asEvent(eventId, AccessLevel.CONTRIBUTOR, { suspendedAt: now }),
       ] as never);
 
       const counts = await service.countVisibleTo(callerId, [closedId, eventId]);

@@ -280,7 +280,7 @@ describe("PhotosService", () => {
       expect(prisma.photo.create).not.toHaveBeenCalled();
     });
 
-    it.each(["ORGANIZER", "PARTICIPANT"] as const)(
+    it.each(["ORGANIZER", "CONTRIBUTOR"] as const)(
       "reserves room in the event's gallery for the PENDING rows, then returns presigned slots for a %s",
       async (accessLevel) => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);
@@ -399,7 +399,7 @@ describe("PhotosService", () => {
 
     it("reports NOT_FOUND for photo ids that are not the caller's pending uploads in the event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([]);
 
       const results = await service.confirmUploads(eventId, callerId, [photoId]);
@@ -416,7 +416,7 @@ describe("PhotosService", () => {
 
     it("reports READY without re-verifying photos that are already READY", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId, { status: "READY" })]);
 
       const results = await service.confirmUploads(eventId, callerId, [photoId]);
@@ -428,7 +428,7 @@ describe("PhotosService", () => {
 
     it("reports MISSING and releases the slot when the object is not in S3", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: false });
 
@@ -458,7 +458,7 @@ describe("PhotosService", () => {
       ["sizeBytes", { contentType: "image/jpeg", sizeBytes: 999 }],
     ])("reports MISMATCHED and removes the object and the slot when the upload differs in %s", async (_field, head) => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, ...head });
 
@@ -476,7 +476,7 @@ describe("PhotosService", () => {
 
     it("keeps the row for the sweeper when a mismatched object cannot be deleted", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 999 });
       s3Service.deleteObjects.mockRejectedValueOnce(new Error("s3 down"));
@@ -494,7 +494,7 @@ describe("PhotosService", () => {
     it("releases only the rejected slots of a mixed batch", async () => {
       const mismatchedPhotoId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([
         buildPhoto(photoId),
         buildPhoto(otherPhotoId),
@@ -528,7 +528,7 @@ describe("PhotosService", () => {
 
     it("flips verified photos to READY and reports per-photo results for a mixed batch", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
       s3Service.headObject
         .mockResolvedValueOnce({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 })
@@ -553,7 +553,7 @@ describe("PhotosService", () => {
 
     it("records each confirmed photo's own hash", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
@@ -576,7 +576,7 @@ describe("PhotosService", () => {
 
     it("confirms a photo without a hash when it can't be read, for the backfill to hash later", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
       s3Service.sha256OfObject.mockRejectedValue(new Error("timeout"));
@@ -600,7 +600,7 @@ describe("PhotosService", () => {
 
       beforeEach(() => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-        prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
         prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId), buildPhoto(otherPhotoId)]);
         s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
         identicalCopiesService.findRemovedImages.mockResolvedValue(new Map([[hashOf(matchingKey()), "report-1"]]));
@@ -664,7 +664,7 @@ describe("PhotosService", () => {
 
     it("touches no rows beyond the READY flip when every photo verifies", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
@@ -677,7 +677,7 @@ describe("PhotosService", () => {
 
     it("deduplicates repeated photo ids in the request", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("PARTICIPANT")]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("CONTRIBUTOR")]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto(photoId)]);
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 1024 });
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
@@ -947,10 +947,10 @@ describe("PhotosService", () => {
       expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
 
-    it("throws ForbiddenException when a participant deletes someone else's photo", async () => {
+    it("throws ForbiddenException when a contributor deletes someone else's photo", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       prisma.photo.findUnique.mockResolvedValue(
-        photoWithEvent([callerAccess("PARTICIPANT")], {
+        photoWithEvent([callerAccess("CONTRIBUTOR")], {
           addedById: "22222222-2222-2222-2222-222222222222",
         }) as never,
       );
@@ -981,7 +981,7 @@ describe("PhotosService", () => {
 
     it("lets an uploader delete their own photo", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
-      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("PARTICIPANT")]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithEvent([callerAccess("CONTRIBUTOR")]) as never);
 
       await service.deletePhoto(photoId, callerId);
 
@@ -1013,8 +1013,8 @@ describe("PhotosService", () => {
       async (_state, eventState) => {
         prisma.user.findUnique.mockResolvedValue(callerWithDetails);
         prisma.photo.findUnique.mockResolvedValue({
-          ...photoWithEvent([callerAccess("PARTICIPANT")]),
-          event: { ...event, ...eventState, eventAccesses: [callerAccess("PARTICIPANT")] },
+          ...photoWithEvent([callerAccess("CONTRIBUTOR")]),
+          event: { ...event, ...eventState, eventAccesses: [callerAccess("CONTRIBUTOR")] },
         } as never);
 
         await service.deletePhoto(photoId, callerId);

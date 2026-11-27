@@ -91,10 +91,10 @@ export const buildOrganizerAccess = (overrides: Partial<EventAccess> = {}): Even
   ...overrides,
 });
 
-export const buildParticipantAccess = (overrides: Partial<EventAccess> = {}): EventAccess => ({
+export const buildContributorAccess = (overrides: Partial<EventAccess> = {}): EventAccess => ({
   ...buildOrganizerAccess(),
   id: "99999999-9999-9999-9999-999999999999",
-  accessLevel: AccessLevel.PARTICIPANT,
+  accessLevel: AccessLevel.CONTRIBUTOR,
   ...overrides,
 });
 
@@ -109,7 +109,7 @@ export const buildEventInvite = (overrides: Partial<EventInvite> = {}): EventInv
   id: TEST_EVENT_INVITE_ID,
   eventId: TEST_EVENT_ID,
   token: TEST_INVITE_TOKEN,
-  accessLevel: AccessLevel.PARTICIPANT,
+  accessLevel: AccessLevel.CONTRIBUTOR,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,
@@ -123,11 +123,11 @@ export const buildViewerEventInvite = (overrides: Partial<EventInvite> = {}): Ev
     ...overrides,
   });
 
-export const buildTargetParticipantAccess = (overrides: Partial<EventAccess> = {}): EventAccess => ({
+export const buildTargetContributorAccess = (overrides: Partial<EventAccess> = {}): EventAccess => ({
   id: "10101010-1010-1010-1010-101010101010",
   userId: TEST_TARGET_USER_ID,
   eventId: TEST_EVENT_ID,
-  accessLevel: AccessLevel.PARTICIPANT,
+  accessLevel: AccessLevel.CONTRIBUTOR,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
   ...overrides,

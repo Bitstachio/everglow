@@ -36,7 +36,7 @@ export class EventResponseDto {
 
   @ApiProperty({
     description:
-      "Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.",
+      "Contributor invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.",
   })
   invitationUrl: string;
 

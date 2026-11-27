@@ -407,7 +407,7 @@ export class ReportsService {
       // Rows first, inside the transaction; the photo's object goes after the
       // commit (below), as in an event delete.
       if (photo) await tx.photo.deleteMany({ where: { id: photo.id } });
-      // The same removal as the participant endpoint: membership, ban, and
+      // The same removal as the contributor endpoint: membership, ban, and
       // with DELETE the member's other photos in the event.
       const member = removedMemberId
         ? await removeMemberInTransaction(tx, {

@@ -68,7 +68,7 @@ describe("defineEventAbilities", () => {
     ).toBe(true);
   });
 
-  it("denies update for participants and viewers", () => {
+  it("denies update for contributors and viewers", () => {
     const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
     expect(
@@ -76,7 +76,7 @@ describe("defineEventAbilities", () => {
         EVENT_ACTIONS.UPDATE,
         subject(EVENT_SUBJECT, {
           id: eventId,
-          eventAccesses: [{ userId, accessLevel: "PARTICIPANT" }],
+          eventAccesses: [{ userId, accessLevel: "CONTRIBUTOR" }],
         } as never),
       ),
     ).toBe(false);
@@ -106,7 +106,7 @@ describe("defineEventAbilities", () => {
     ).toBe(true);
   });
 
-  it("denies delete for participants and viewers", () => {
+  it("denies delete for contributors and viewers", () => {
     const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
     expect(
@@ -114,7 +114,7 @@ describe("defineEventAbilities", () => {
         EVENT_ACTIONS.DELETE,
         subject(EVENT_SUBJECT, {
           id: eventId,
-          eventAccesses: [{ userId, accessLevel: "PARTICIPANT" }],
+          eventAccesses: [{ userId, accessLevel: "CONTRIBUTOR" }],
         } as never),
       ),
     ).toBe(false);

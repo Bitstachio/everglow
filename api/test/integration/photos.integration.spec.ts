@@ -21,7 +21,7 @@ import {
   TEST_EVENT_ID,
   buildEvent,
   buildOrganizerAccess,
-  buildParticipantAccess,
+  buildContributorAccess,
   buildViewerAccess,
 } from "./helpers/events.fixtures";
 import {
@@ -295,7 +295,7 @@ describe("PhotosController (integration)", () => {
 
   describe("POST /events/:eventId/photos/confirm", () => {
     it("returns 201 with per-photo verification results", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
       prisma.photo.updateMany.mockResolvedValue({ count: 1 });
 
@@ -325,7 +325,7 @@ describe("PhotosController (integration)", () => {
 
     it("returns 422 PHOTO_REJECTED_MATCHES_REMOVED_IMAGE for the bytes of an intimate image removed within the retention window", async () => {
       const photo = buildPhoto({ status: "PENDING" });
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([photo]);
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       prisma.reportEvidence.findMany.mockResolvedValue([{ sha256, reportId: "removed-report" }] as never);
@@ -377,7 +377,7 @@ describe("PhotosController (integration)", () => {
       };
 
       beforeEach(() => {
-        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+        prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]) as never);
         prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
         prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       });
@@ -429,7 +429,7 @@ describe("PhotosController (integration)", () => {
     });
 
     it("returns 201 with MISSING and releases the slot when nothing was uploaded", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([buildPhoto({ status: "PENDING" })]);
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       s3Service.headObject.mockResolvedValue({ exists: false });
@@ -451,7 +451,7 @@ describe("PhotosController (integration)", () => {
 
     it("returns 201 with MISMATCHED and removes the object and the slot when the upload differs", async () => {
       const photo = buildPhoto({ status: "PENDING" });
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]) as never);
       prisma.photo.findMany.mockResolvedValue([photo]);
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       s3Service.headObject.mockResolvedValue({ exists: true, contentType: "image/jpeg", sizeBytes: 999 });
@@ -797,9 +797,9 @@ describe("PhotosController (integration)", () => {
       expect(s3Service.deleteObjects).not.toHaveBeenCalled();
     });
 
-    it("returns 403 when a participant deletes someone else's photo", async () => {
+    it("returns 403 when a contributor deletes someone else's photo", async () => {
       prisma.photo.findUnique.mockResolvedValue(
-        photoWithAccess([buildParticipantAccess()], {
+        photoWithAccess([buildContributorAccess()], {
           addedById: TEST_OTHER_USER_ID,
         }) as never,
       );
@@ -845,7 +845,7 @@ describe("PhotosController (integration)", () => {
         ["under review", { underReviewAt: new Date("2026-11-01T00:00:00Z") }],
       ])("returns 204 when the uploader deletes their own photo in a %s event", async (_state, state) => {
         evidence.preserveBeforeDelete.mockClear();
-        const photo = inEvent([buildParticipantAccess()], state);
+        const photo = inEvent([buildContributorAccess()], state);
         prisma.photo.findUnique.mockResolvedValue(photo as never);
         prisma.photo.delete.mockResolvedValue(buildPhoto() as never);
 

@@ -88,7 +88,7 @@ const settleReportsFiledBy = async (
 };
 
 /**
- * An organizer removing a member, by either route: the participant endpoint
+ * An organizer removing a member, by either route: the member-removal endpoint
  * or REMOVE_MEMBER on a report. Run it inside the caller's transaction. It
  * deletes the membership, bans them from rejoining through the invitation
  * link (a repeat ban keeps the first), settles the OPEN reports they filed

@@ -157,7 +157,7 @@ describe("Report visibility (integration)", () => {
 
   describe("resolving", () => {
     /**
-     * Filed while the host was a participant, so still in the organizers' queue:
+     * Filed while the host was a contributor, so still in the organizers' queue:
      * the one case where another organizer may close a report about an organizer.
      */
     const promotedCases = [

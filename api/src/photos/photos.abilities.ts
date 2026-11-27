@@ -20,12 +20,12 @@ export const definePhotoAbilities = (can: AbilityBuilder<AppAbility>["can"], use
     event: { is: { eventAccesses: { some: { userId: user.id } } } },
   });
 
-  // Organizers and participants can upload photos.
+  // Organizers and contributors can upload photos.
   can(PHOTO_ACTIONS.CREATE, PHOTO_SUBJECT, {
     event: {
       is: {
         eventAccesses: {
-          some: { userId: user.id, accessLevel: { in: [AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT] } },
+          some: { userId: user.id, accessLevel: { in: [AccessLevel.ORGANIZER, AccessLevel.CONTRIBUTOR] } },
         },
       },
     },

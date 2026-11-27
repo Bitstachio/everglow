@@ -263,11 +263,11 @@ export class EventsController {
   @Post(":eventId/regenerate-url")
   @RateLimit("sensitive")
   @ApiOperation({
-    summary: "Regenerate the participant invitation URL",
+    summary: "Regenerate the contributor invitation URL",
     description:
-      "Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.",
+      "Rotates the Contributor invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.",
   })
-  @ApiWrappedResponse(EventResponseDto, "Event with new participant invitation URL")
+  @ApiWrappedResponse(EventResponseDto, "Event with new contributor invitation URL")
   async regenerateInvitationUrl(
     @CurrentUser() user: AuthenticatedUser,
     @Param("eventId", ParseUUIDPipe) eventId: string,
@@ -280,7 +280,7 @@ export class EventsController {
   @ApiOperation({
     summary: "Regenerate an invitation URL for one access level",
     description:
-      "Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; " +
+      "Organizers only. Other roles' invite links stay valid. Only CONTRIBUTOR and VIEWER have links; " +
       "someone becomes an organizer only when an organizer promotes them.",
   })
   @ApiParam({ name: "accessLevel", enum: INVITE_ACCESS_LEVELS, enumName: "InviteAccessLevel" })

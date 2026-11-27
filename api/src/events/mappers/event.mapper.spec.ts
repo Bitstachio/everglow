@@ -34,7 +34,7 @@ describe("EventMapper", () => {
     userId: "44444444-4444-4444-4444-444444444444",
     username: "target.user",
     name: "Target User",
-    accessLevel: AccessLevel.PARTICIPANT,
+    accessLevel: AccessLevel.CONTRIBUTOR,
     avatarUrl: "https://s3.example/avatar?sig=1",
     isBlockedByCaller: true,
     photoCount: 31,
@@ -186,14 +186,14 @@ describe("EventMapper", () => {
           id: "3",
           eventId: event.id,
           token: inviteToken,
-          accessLevel: AccessLevel.PARTICIPANT,
+          accessLevel: AccessLevel.CONTRIBUTOR,
           createdAt: now,
           updatedAt: now,
         },
       ];
 
       expect(EventMapper.toResponseDto(event, null, limits, usage, 0, AccessLevel.ORGANIZER, invites).invites).toEqual([
-        { accessLevel: AccessLevel.PARTICIPANT, invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}` },
+        { accessLevel: AccessLevel.CONTRIBUTOR, invitationUrl: `${EVENT_INVITATION_BASE_URL}/${inviteToken}` },
         { accessLevel: AccessLevel.VIEWER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/viewer-token` },
         { accessLevel: AccessLevel.ORGANIZER, invitationUrl: `${EVENT_INVITATION_BASE_URL}/org-token` },
       ]);
@@ -227,7 +227,7 @@ describe("EventMapper", () => {
   });
 
   describe("toParticipantResponseDto", () => {
-    it("maps participant fields for the roster response", () => {
+    it("maps contributor fields for the roster response", () => {
       const result = EventMapper.toParticipantResponseDto(participant);
 
       expect(result).toEqual({
@@ -243,7 +243,7 @@ describe("EventMapper", () => {
   });
 
   describe("toParticipantResponseDtoList", () => {
-    it("maps each participant in the list", () => {
+    it("maps each contributor in the list", () => {
       const result = EventMapper.toParticipantResponseDtoList([
         participant,
         { ...participant, userId: "55555555-5555-5555-5555-555555555555", accessLevel: AccessLevel.VIEWER },

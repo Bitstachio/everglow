@@ -116,7 +116,7 @@ const PHOTO_REMOVED_COPY: Record<NotificationLocale, Omit<RenderedNotification, 
 const MEMBER_REMOVED_COPY: Record<NotificationLocale, Omit<RenderedNotification, "url">> = {
   en: {
     title: "Removed from a roll",
-    body: "A host removed you. Only a host can let you back in.",
+    body: "An organizer removed you. Only an organizer can let you back in.",
   },
 };
 

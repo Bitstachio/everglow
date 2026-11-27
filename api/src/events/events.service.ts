@@ -72,7 +72,7 @@ export class EventsService {
     const ability = this.abilityFactory.createForUser({ id: creatorId, isOnboarded: !!creator.details });
     authorize(ability, EVENT_ACTIONS.CREATE, EVENT_SUBJECT);
 
-    const participantToken = randomUUID();
+    const contributorToken = randomUUID();
     const now = new Date();
     const date = new Date(dto.date);
     this.assertDateInRange(date, now);
@@ -93,7 +93,7 @@ export class EventsService {
           galleryWindowDays,
           ...gallerySchedule(date, galleryWindowDays, now),
           creatorId,
-          invitationUrl: participantToken,
+          invitationUrl: contributorToken,
           ...(dto.description !== undefined && { description: dto.description }),
           eventAccesses: {
             create: {
@@ -103,7 +103,7 @@ export class EventsService {
           },
           invites: {
             create: [
-              { token: participantToken, accessLevel: AccessLevel.PARTICIPANT },
+              { token: contributorToken, accessLevel: AccessLevel.CONTRIBUTOR },
               { token: randomUUID(), accessLevel: AccessLevel.VIEWER },
             ],
           },
@@ -450,12 +450,12 @@ export class EventsService {
   }
 
   async regenerateInvitationUrl(eventId: string, callerId: string): Promise<Event> {
-    return this.regenerateInvite(eventId, callerId, AccessLevel.PARTICIPANT);
+    return this.regenerateInvite(eventId, callerId, AccessLevel.CONTRIBUTOR);
   }
 
   /**
    * Rotates the invite token for one access level. Other roles' links stay
-   * valid. The PARTICIPANT token also updates Event.invitationUrl so older
+   * valid. The CONTRIBUTOR token also updates Event.invitationUrl so older
    * clients that only know that field keep working.
    */
   async regenerateInvite(eventId: string, callerId: string, accessLevel: EventInviteAccessLevel): Promise<Event> {
@@ -480,7 +480,7 @@ export class EventsService {
         data: { token },
       });
 
-      if (accessLevel === AccessLevel.PARTICIPANT) {
+      if (accessLevel === AccessLevel.CONTRIBUTOR) {
         return tx.event.update({
           where: { id: eventId },
           data: { invitationUrl: token },
@@ -843,7 +843,7 @@ export class EventsService {
     access: EventAccessWithUser,
     photoCount: number,
   ): Promise<EventParticipant> {
-    // A member without a profile has no participant to show, as in the roster.
+    // A member without a profile has no contributor to show, as in the roster.
     if (!access.user.details) throw new ApiException("TARGET_NOT_A_MEMBER", { userId: access.userId, eventId });
 
     return {

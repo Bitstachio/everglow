@@ -12,7 +12,7 @@ import { buildInvitationUrl } from "../events.invitation";
 import { EventBanWithUser, EventParticipant, InvitePreview } from "../events.types";
 
 const INVITE_SORT_ORDER: Record<string, number> = {
-  PARTICIPANT: 0,
+  CONTRIBUTOR: 0,
   VIEWER: 1,
 };
 

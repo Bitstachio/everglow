@@ -262,7 +262,7 @@ These are explicitly **not** being built now. Listed so we know what we're skipp
 In order of implementation:
 
 - [x] **Prisma schema** — add `Photo` model + `PhotoStatus` enum + composite index. Generate migration. (Reshaped the pre-existing `Photo` model; kept `addedById` for attribution and delete-own-photo rules.)
-- [x] **CASL** — register `Photo` subject. Permissions derive from the parent `Event`'s access levels. (Read: any member. Create: organizer + participant. Delete: organizer any, uploader own.)
+- [x] **CASL** — register `Photo` subject. Permissions derive from the parent `Event`'s access levels. (Read: any member. Create: organizer + contributor. Delete: organizer any, uploader own.)
 - [x] **`S3Service.headObject`** — existence + size/contentType lookup used by confirm. (Prerequisite discovered during implementation.)
 - [x] **Photos module skeleton** — `photos.module.ts`, `photos.service.ts`, `photos.controller.ts`, DTOs. Mirror the existing `events` module shape.
 - [x] **`POST /events/:eventId/photos/upload-urls`** — batch mint presigned PUT URLs (1h TTL), create PENDING rows in one transaction. Enforce contentType allowlist + max size + max batch size.

@@ -41,7 +41,7 @@ describe("authorize", () => {
 
   it("tells a member whose role doesn't allow it which role it needs, naming the action in the reason", () => {
     const refusal = refusalOf(() =>
-      authorize(onboarded, EVENT_ACTIONS.UPDATE, eventFor(AccessLevel.PARTICIPANT), {
+      authorize(onboarded, EVENT_ACTIONS.UPDATE, eventFor(AccessLevel.CONTRIBUTOR), {
         isMember: true,
         refusal: "ORGANIZER_ONLY",
       }),

@@ -204,7 +204,7 @@ describe("ReportsService", () => {
     prisma.user.findUnique.mockResolvedValue(callerWithDetails);
     prisma.report.findFirst.mockResolvedValue(null);
     prisma.report.count.mockResolvedValue(1);
-    prisma.eventAccess.findUnique.mockResolvedValue(access(uploaderId, AccessLevel.PARTICIPANT));
+    prisma.eventAccess.findUnique.mockResolvedValue(access(uploaderId, AccessLevel.CONTRIBUTOR));
     prisma.eventAccess.findMany.mockResolvedValue([]);
     // Interactive transactions run their callback against the same mock client.
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
@@ -213,7 +213,7 @@ describe("ReportsService", () => {
   describe("reportPhoto", () => {
     const dto = { reason: ReportReason.SPAM, note: "Keeps posting ads" };
 
-    it.each([AccessLevel.ORGANIZER, AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+    it.each([AccessLevel.ORGANIZER, AccessLevel.CONTRIBUTOR, AccessLevel.VIEWER])(
       "lets a %s report a photo of the event",
       async (accessLevel) => {
         prisma.photo.findUnique.mockResolvedValue(photoFor(accessLevel) as never);
@@ -245,7 +245,7 @@ describe("ReportsService", () => {
     );
 
     it("writes the evidence snapshot in the same transaction as the report", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
 
       await service.reportPhoto(photoId, callerId, dto);
@@ -260,7 +260,7 @@ describe("ReportsService", () => {
     });
 
     it("writes no snapshot for a repeat that returns the caller's open report", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([]);
       prisma.report.findFirst.mockResolvedValue(buildReport());
 
@@ -270,7 +270,7 @@ describe("ReportsService", () => {
     });
 
     it("files a child-safety report with the platform, held for a year from the start, and says so", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([buildReport({ reason: ReportReason.CHILD_SAFETY })]);
 
       await service.reportPhoto(photoId, callerId, { reason: ReportReason.CHILD_SAFETY });
@@ -294,7 +294,7 @@ describe("ReportsService", () => {
     });
 
     it("files an intimate-image report with the platform, with no hold: the image must not be kept", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([
         buildReport({ reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }),
       ]);
@@ -340,13 +340,13 @@ describe("ReportsService", () => {
 
     it("throws ForbiddenException when the caller has not completed onboarding", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithoutDetails);
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
 
       await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it("refuses a report of the caller's own photo", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT, { addedById: callerId }) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR, { addedById: callerId }) as never);
 
       await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toMatchObject({
         response: { code: "CANNOT_REPORT_SELF" },
@@ -356,7 +356,7 @@ describe("ReportsService", () => {
 
     it("returns the caller's OPEN report instead of creating a second one", async () => {
       const existing = buildReport({ reason: ReportReason.HARASSMENT });
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       prisma.report.findFirst.mockResolvedValue(existing);
       // Their own open report hides the photo from them; that must not turn the repeat into a 404.
       photoVisibilityService.isVisibleTo.mockResolvedValue(false);
@@ -372,7 +372,7 @@ describe("ReportsService", () => {
 
     it("returns the winning report when a concurrent submission inserted first", async () => {
       const winner = buildReport();
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       // The photo was still visible, so no report existed yet; the database then skipped the insert as a duplicate.
       prisma.report.createManyAndReturn.mockResolvedValue([]);
       prisma.report.findFirst.mockResolvedValue(winner);
@@ -385,7 +385,7 @@ describe("ReportsService", () => {
     });
 
     it("answers 409 when the insert was skipped and the winning report is already resolved", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       prisma.report.createManyAndReturn.mockResolvedValue([]);
 
       await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toMatchObject({
@@ -398,7 +398,7 @@ describe("ReportsService", () => {
         buildReport({ status: ReportStatus.DISMISSED, closedReason: "DISMISSED", resolvedAt: new Date() });
 
       it("refuses the same reporter on the same photo within the cooldown, creating nothing", async () => {
-        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
         prisma.report.findFirst.mockResolvedValue(dismissed());
 
         await expect(service.reportPhoto(photoId, callerId, dto)).rejects.toMatchObject({
@@ -413,7 +413,7 @@ describe("ReportsService", () => {
       it("looks only for the caller's own dismissed report on this photo, within the cooldown", async () => {
         jest.useFakeTimers({ now: new Date("2026-11-01T12:00:00.000Z"), doNotFake: ["nextTick", "setImmediate"] });
         try {
-          prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+          prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
           prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
 
           await service.reportPhoto(photoId, callerId, dto);
@@ -437,7 +437,7 @@ describe("ReportsService", () => {
       it.each([ReportReason.CHILD_SAFETY, ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE])(
         "never refuses a %s report, which the platform judges anyway",
         async (reason) => {
-          prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+          prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
           prisma.report.findFirst.mockResolvedValue(dismissed());
           prisma.report.createManyAndReturn.mockResolvedValue([buildReport({ reason, queue: "PLATFORM" })]);
 
@@ -448,7 +448,7 @@ describe("ReportsService", () => {
     });
 
     it("treats a photo the caller cannot see (blocked, or already hidden) as not found", async () => {
-      const photo = photoFor(AccessLevel.PARTICIPANT);
+      const photo = photoFor(AccessLevel.CONTRIBUTOR);
       prisma.photo.findUnique.mockResolvedValue(photo as never);
       photoVisibilityService.isVisibleTo.mockResolvedValue(false);
 
@@ -461,7 +461,7 @@ describe("ReportsService", () => {
 
     describe("audit and escalation", () => {
       beforeEach(() => {
-        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
       });
 
       it("logs report.created with ids, reason and target type, and never the note", async () => {
@@ -536,7 +536,7 @@ describe("ReportsService", () => {
       });
 
       it("also flags a report about an event's only organizer, whom nobody in the event can judge", async () => {
-        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT) as never);
+        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR) as never);
         prisma.eventAccess.findUnique.mockResolvedValue(access(uploaderId, AccessLevel.ORGANIZER));
         prisma.eventAccess.count.mockResolvedValue(1);
         prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
@@ -572,7 +572,7 @@ describe("ReportsService", () => {
       });
 
       it("uses the small-event threshold of 2 where 3 reports could never be collected", async () => {
-        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.PARTICIPANT, {}, 3) as never);
+        prisma.photo.findUnique.mockResolvedValue(photoFor(AccessLevel.CONTRIBUTOR, {}, 3) as never);
         prisma.report.createManyAndReturn.mockResolvedValue([buildReport()]);
         prisma.report.count.mockResolvedValue(2);
 
@@ -655,7 +655,7 @@ describe("ReportsService", () => {
     });
 
     it("always escalates it to the platform owner, whatever the reason", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
 
       await service.reportEvent(eventId, callerId, dto);
@@ -673,7 +673,7 @@ describe("ReportsService", () => {
     it("names who set the event's cover in the report's log lines", async () => {
       const coverSetter = "33333333-3333-3333-3333-333333333333";
       prisma.event.findUnique.mockResolvedValue({
-        ...eventWithCallerAccess(AccessLevel.PARTICIPANT),
+        ...eventWithCallerAccess(AccessLevel.CONTRIBUTOR),
         coverUpdatedById: coverSetter,
       });
       prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
@@ -688,7 +688,7 @@ describe("ReportsService", () => {
 
     describe("under review", () => {
       it("puts the event under review when its OPEN event reports reach the hide threshold", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
         prisma.report.findMany.mockResolvedValue(openEventReports(REPORT_HIDE_THRESHOLD));
         prisma.event.updateMany.mockResolvedValue({ count: 1 });
@@ -707,7 +707,7 @@ describe("ReportsService", () => {
       });
 
       it("goes under review at a single child-safety report, whatever the event's size", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 300));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR, 300));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport({ reason: ReportReason.CHILD_SAFETY })]);
         prisma.report.findMany.mockResolvedValue([{ reason: ReportReason.CHILD_SAFETY }] as never);
         prisma.event.updateMany.mockResolvedValue({ count: 1 });
@@ -719,7 +719,7 @@ describe("ReportsService", () => {
       });
 
       it("needs only two reports in an event of three or fewer", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 3));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR, 3));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
         prisma.report.findMany.mockResolvedValue(openEventReports(SMALL_EVENT_REPORT_HIDE_THRESHOLD));
         prisma.event.updateMany.mockResolvedValue({ count: 1 });
@@ -730,7 +730,7 @@ describe("ReportsService", () => {
       });
 
       it("leaves the event alone below the threshold", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
         prisma.report.findMany.mockResolvedValue(openEventReports(REPORT_HIDE_THRESHOLD - 1));
 
@@ -741,7 +741,7 @@ describe("ReportsService", () => {
       });
 
       it("does not say so again for an event already under review", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
         prisma.report.findMany.mockResolvedValue(openEventReports(REPORT_HIDE_THRESHOLD + 1));
         prisma.event.updateMany.mockResolvedValue({ count: 0 });
@@ -752,7 +752,7 @@ describe("ReportsService", () => {
       });
 
       it("needs a tenth of a large event's members when no report is severe", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 100));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR, 100));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
         prisma.report.findMany.mockResolvedValue(openEventReports(9));
 
@@ -769,7 +769,7 @@ describe("ReportsService", () => {
       });
 
       it("keeps the hide threshold in a large event once any open report is severe", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT, 100));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR, 100));
         prisma.report.createManyAndReturn.mockResolvedValue([eventReport()]);
         prisma.report.findMany.mockResolvedValue([
           ...openEventReports(REPORT_HIDE_THRESHOLD - 1),
@@ -783,7 +783,7 @@ describe("ReportsService", () => {
       });
 
       it("checks nothing for a repeat of the caller's OPEN report", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
         prisma.report.createManyAndReturn.mockResolvedValue([]);
         prisma.report.findFirst.mockResolvedValue(eventReport());
 
@@ -794,7 +794,7 @@ describe("ReportsService", () => {
     });
 
     it("adds severe_reason for nudity or violence", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.report.createManyAndReturn.mockResolvedValue([eventReport({ reason: ReportReason.VIOLENCE })]);
 
       await service.reportEvent(eventId, callerId, { reason: ReportReason.VIOLENCE });
@@ -807,7 +807,7 @@ describe("ReportsService", () => {
 
     it("returns the caller's OPEN report on the event instead of creating a second one", async () => {
       const existing = eventReport();
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.report.createManyAndReturn.mockResolvedValue([]);
       prisma.report.findFirst.mockResolvedValue(existing);
 
@@ -893,7 +893,7 @@ describe("ReportsService", () => {
     });
 
     it("refuses a report of yourself", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
 
       await expect(service.reportMember(eventId, callerId, callerId, dto)).rejects.toMatchObject({
         response: { code: "CANNOT_REPORT_SELF" },
@@ -901,7 +901,7 @@ describe("ReportsService", () => {
     });
 
     it("refuses a target who is not a member of the event", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
       await expect(service.reportMember(eventId, targetUserId, callerId, dto)).rejects.toMatchObject({
@@ -912,7 +912,7 @@ describe("ReportsService", () => {
 
     it("returns the caller's OPEN report on that member instead of creating a second one", async () => {
       const existing = memberReport();
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       // The partial unique index is the duplicate check: the insert is skipped, sequentially or in a race.
       prisma.report.createManyAndReturn.mockResolvedValue([]);
       prisma.report.findFirst.mockResolvedValue(existing);
@@ -926,7 +926,7 @@ describe("ReportsService", () => {
     });
 
     it("escalates a report of an organizer", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.eventAccess.findUnique.mockResolvedValue(access(targetUserId, AccessLevel.ORGANIZER));
       prisma.report.createManyAndReturn.mockResolvedValue([memberReport()]);
 
@@ -944,7 +944,7 @@ describe("ReportsService", () => {
     });
 
     it("refuses the intimate-image reason on a member with 400: a member is not an image", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
 
       await expect(
         service.reportMember(eventId, targetUserId, callerId, { reason: ReportReason.NON_CONSENSUAL_INTIMATE_IMAGE }),
@@ -953,7 +953,7 @@ describe("ReportsService", () => {
     });
 
     it("files a report about an organizer straight into the platform's queue", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.eventAccess.findUnique.mockResolvedValue(access(targetUserId, AccessLevel.ORGANIZER));
       prisma.eventAccess.count.mockResolvedValue(2);
       prisma.report.createManyAndReturn.mockResolvedValue([memberReport()]);
@@ -977,7 +977,7 @@ describe("ReportsService", () => {
       const closed = { ...event, galleryClosesAt: new Date(Date.now() - 60_000) };
       prisma.event.findUnique.mockResolvedValue({
         ...closed,
-        eventAccesses: [access(callerId, AccessLevel.PARTICIPANT)],
+        eventAccesses: [access(callerId, AccessLevel.CONTRIBUTOR)],
       } as never);
       prisma.report.createManyAndReturn.mockResolvedValue([memberReport()]);
 
@@ -991,7 +991,7 @@ describe("ReportsService", () => {
     });
 
     it("does not escalate a HARASSMENT report of an ordinary member", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.PARTICIPANT));
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(AccessLevel.CONTRIBUTOR));
       prisma.report.createManyAndReturn.mockResolvedValue([memberReport()]);
 
       await service.reportMember(eventId, targetUserId, callerId, dto);
@@ -1062,7 +1062,7 @@ describe("ReportsService", () => {
       );
     });
 
-    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+    it.each([AccessLevel.CONTRIBUTOR, AccessLevel.VIEWER])(
       "tells a %s that only organizers can read the reports",
       async (accessLevel) => {
         prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(accessLevel));
@@ -1585,7 +1585,7 @@ describe("ReportsService", () => {
       );
     });
 
-    it.each([AccessLevel.PARTICIPANT, AccessLevel.VIEWER])(
+    it.each([AccessLevel.CONTRIBUTOR, AccessLevel.VIEWER])(
       "tells a %s that only organizers can resolve reports",
       async (accessLevel) => {
         setup(reportFor(accessLevel));

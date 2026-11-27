@@ -483,7 +483,7 @@ An organizer removes a member either with `DELETE /events/:eventId/participants/
    | `KEEP` (default) | They stay in the event, still credited to the member, until the gallery closes ([photos-architecture.md](./photos-architecture.md) §9)                                                       |
    | `DELETE`         | Every photo they uploaded to the event is deleted. Reported ones keep their evidence and their reports follow §3, and the objects are purged after the commit (`event.member.photos_purged`) |
 
-   It is a query parameter on the participant route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
+   It is a query parameter on the member-removal route (`?photos=DELETE`) and a body field on `PATCH /reports/:reportId`, where it is only valid with `REMOVE_MEMBER` (400 otherwise).
 
 **A ban is per event.** It only stops rejoining through the invitation link; nothing else about the account changes. Leaving an event on your own records no ban, so you can come back. Leaving asks the member the same KEEP or DELETE question about their own photos. A ban across the whole platform is an account suspension, which only the platform can do (§8).
 
@@ -493,10 +493,10 @@ A ban cascades with the event and with the banned account, and `bannedById` beco
 
 ### Invite links and becoming an organizer
 
-Every event has two invite links, **Participant** and **Viewer** (`EventInvite`). There is no organizer link: a link can be forwarded or leak, and an organizer can remove people and delete the event. **Someone becomes an organizer only when an organizer promotes a member** (`PUT /events/:eventId/participants/:targetUserId/access`). The last organizer can't be demoted (`LAST_ORGANIZER`).
+Every event has two invite links, **Contributor** and **Viewer** (`EventInvite`). There is no organizer link: a link can be forwarded or leak, and an organizer can remove people and delete the event. **Someone becomes an organizer only when an organizer promotes a member** (`PUT /events/:eventId/participants/:targetUserId/access`). The last organizer can't be demoted (`LAST_ORGANIZER`).
 
 - Promoting a member moves their OPEN reports to the platform (§3).
-- `POST /events/:eventId/invites/:accessLevel/regenerate` accepts `PARTICIPANT` and `VIEWER`; `ORGANIZER` is a 400.
+- `POST /events/:eventId/invites/:accessLevel/regenerate` accepts `CONTRIBUTOR` and `VIEWER`; `ORGANIZER` is a 400.
 - Organizer links created before this rule were deleted by a migration. A leftover token reads as an unknown link (404).
 
 ---

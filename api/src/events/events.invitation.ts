@@ -11,7 +11,7 @@ export const EVENT_INVITATION_BASE_URL = process.env.EVENT_INVITATION_BASE_URL ?
  * becomes an organizer only when an organizer promotes a member.
  */
 export const INVITE_ACCESS_LEVELS = {
-  PARTICIPANT: AccessLevel.PARTICIPANT,
+  CONTRIBUTOR: AccessLevel.CONTRIBUTOR,
   VIEWER: AccessLevel.VIEWER,
 } as const;
 

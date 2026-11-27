@@ -2177,7 +2177,7 @@
     },
     "/api/v2/events/{eventId}/regenerate-url": {
       "post": {
-        "description": "Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.",
+        "description": "Rotates the Contributor invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.",
         "operationId": "EventsController_regenerateInvitationUrl",
         "parameters": [
           {
@@ -2191,7 +2191,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Event with new participant invitation URL",
+            "description": "Event with new contributor invitation URL",
             "content": {
               "application/json": {
                 "schema": {
@@ -2224,7 +2224,7 @@
             "access-token": []
           }
         ],
-        "summary": "Regenerate the participant invitation URL",
+        "summary": "Regenerate the contributor invitation URL",
         "tags": [
           "events"
         ]
@@ -2232,7 +2232,7 @@
     },
     "/api/v2/events/{eventId}/invites/{accessLevel}/regenerate": {
       "post": {
-        "description": "Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; someone becomes an organizer only when an organizer promotes them.",
+        "description": "Organizers only. Other roles' invite links stay valid. Only CONTRIBUTOR and VIEWER have links; someone becomes an organizer only when an organizer promotes them.",
         "operationId": "EventsController_regenerateInvite",
         "parameters": [
           {
@@ -4312,7 +4312,7 @@
         "type": "string",
         "enum": [
           "ORGANIZER",
-          "PARTICIPANT",
+          "CONTRIBUTOR",
           "VIEWER"
         ],
         "description": "The caller's role on this event. Present on every event response the caller can read."
@@ -4428,7 +4428,7 @@
           },
           "invitationUrl": {
             "type": "string",
-            "description": "Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL."
+            "description": "Contributor invitation link. Prefer `invites` when present; kept for older clients that expect a single URL."
           },
           "invites": {
             "description": "Per-role invitation links. Populated for organizers; empty for other members so invite tokens are not leaked.",
@@ -4606,10 +4606,10 @@
       "InviteAccessLevel": {
         "type": "string",
         "enum": [
-          "PARTICIPANT",
+          "CONTRIBUTOR",
           "VIEWER"
         ],
-        "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks."
+        "description": "What joining with this invite grants: CONTRIBUTOR adds photos, VIEWER only looks."
       },
       "InviteHostResponseDto": {
         "type": "object",
@@ -4659,7 +4659,7 @@
             "description": "The invite's shareable link, as organizers share it: what a QR code on the envelope carries."
           },
           "accessLevel": {
-            "description": "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.",
+            "description": "What joining with this invite grants: CONTRIBUTOR adds photos, VIEWER only looks.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/InviteAccessLevel"

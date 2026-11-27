@@ -15,7 +15,7 @@ describe("defineReportAbilities", () => {
   };
 
   const reportWithAccess = (
-    accessLevel: "ORGANIZER" | "PARTICIPANT" | "VIEWER",
+    accessLevel: "ORGANIZER" | "CONTRIBUTOR" | "VIEWER",
     {
       accessUserId = userId,
       reporterId = userId,
@@ -48,14 +48,14 @@ describe("defineReportAbilities", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
       expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("ORGANIZER"))).toBe(true);
-      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("PARTICIPANT"))).toBe(true);
+      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("CONTRIBUTOR"))).toBe(true);
       expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("VIEWER"))).toBe(true);
     });
 
     it("denies a user who is not a member of the event", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
-      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("PARTICIPANT", { accessUserId: otherUserId }))).toBe(
+      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("CONTRIBUTOR", { accessUserId: otherUserId }))).toBe(
         false,
       );
     });
@@ -63,7 +63,7 @@ describe("defineReportAbilities", () => {
     it("denies filing a report in someone else's name", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
-      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("PARTICIPANT", { reporterId: otherUserId }))).toBe(
+      expect(ability.can(REPORT_ACTIONS.CREATE, reportWithAccess("CONTRIBUTOR", { reporterId: otherUserId }))).toBe(
         false,
       );
     });
@@ -86,10 +86,10 @@ describe("defineReportAbilities", () => {
       expect(ability.can(action, reportWithAccess("ORGANIZER", { targetType: "EVENT" }))).toBe(false);
     });
 
-    it("denies participants and viewers, even for a report they filed", () => {
+    it("denies contributors and viewers, even for a report they filed", () => {
       const ability = createAbilityForUser({ id: userId, isOnboarded: true });
 
-      expect(ability.can(action, reportWithAccess("PARTICIPANT"))).toBe(false);
+      expect(ability.can(action, reportWithAccess("CONTRIBUTOR"))).toBe(false);
       expect(ability.can(action, reportWithAccess("VIEWER"))).toBe(false);
     });
 

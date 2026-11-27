@@ -338,7 +338,7 @@ So `?photos=` is **required**, with no server-side default. Both outcomes are ir
 
 ### Events are handed over, not orphaned
 
-Telegram leaves a channel whose owner deleted their account without an owner: admins keep working, but nobody can ever transfer or delete it. Those zombie channels are the outcome to avoid. WhatsApp instead promotes a member when the last admin leaves, and Everglow does the same, deterministically: participants before viewers, then whoever has been a member longest. A viewer can be promoted when nobody else is left, because an organizer who cannot upload still beats an event nobody can manage. Only an event with no other member at all is deleted.
+Telegram leaves a channel whose owner deleted their account without an owner: admins keep working, but nobody can ever transfer or delete it. Those zombie channels are the outcome to avoid. WhatsApp instead promotes a member when the last admin leaves, and Everglow does the same, deterministically: contributors before viewers, then whoever has been a member longest. A viewer can be promoted when nobody else is left, because an organizer who cannot upload still beats an event nobody can manage. Only an event with no other member at all is deleted.
 
 ### No grace period
 
@@ -351,7 +351,7 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Case                                           | Handling                                                                                                               |
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Organises an event with another organizer      | Membership removed; event untouched                                                                                    |
-| Only organizer, other members are participants | Longest-standing participant promoted                                                                                  |
+| Only organizer, other members are contributors | Longest-standing contributor promoted                                                                                  |
 | Only organizer, other members are only viewers | Longest-standing viewer promoted                                                                                       |
 | Only member of the event                       | Event deleted with all its photos and its cover; S3 purged through the outbox after commit                             |
 | Created an event it later left                 | `creatorId` set to null; nothing else                                                                                  |
@@ -373,7 +373,7 @@ Facebook and Instagram hold a deleted account for 30 days and let a sign-in canc
 | Database delete fails after Auth0              | Row kept and flagged; reconciler finishes it                                                                           |
 | S3 purge fails                                 | Logged with counts; the keys stay in the outbox for the resumed saga or the reconciler; request still 204 if the rest finished |
 | Pass fails after prep (Apple, Auth0, a crash)  | Prep's keys were queued in its transaction and drained before the failure; the resumed pass drains what is left        |
-| Member or organizer mid-deletion, or abandoned | Left out of participant lists and never named as an invite's host                                                      |
+| Member or organizer mid-deletion, or abandoned | Left out of member lists and never named as an invite's organizer                                                      |
 | Any request with a pre-deletion token          | Generic 401; client signs out                                                                                          |
 | Token issued within 5 minutes after the deletion | Refused like a pre-deletion one: Auth0's clock may run ahead of ours (authentication.md §6)                         |
 | Same person signs in again later               | New account, new id, free tier (see authentication.md §6); suspended again and banned again if the deleted one was (§6a) |

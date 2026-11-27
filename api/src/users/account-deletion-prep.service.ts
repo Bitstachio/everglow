@@ -178,7 +178,7 @@ export class AccountDeletionPrepService {
       });
       if (otherOrganizers > 0) continue;
 
-      // Participants before viewers (the enum is declared in that order), then
+      // Contributors before viewers (the enum is declared in that order), then
       // whoever has been a member longest. Deterministic, unlike a random pick.
       // Members on their way out are skipped: handing the event to one of them
       // would lose it again when their own deletion finishes.

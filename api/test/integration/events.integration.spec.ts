@@ -26,8 +26,8 @@ import {
   buildOrganizerAccess,
   buildOtherUserEvent,
   buildOtherUserWithDetails,
-  buildParticipantAccess,
-  buildTargetParticipantAccess,
+  buildContributorAccess,
+  buildTargetContributorAccess,
   buildTargetUserWithDetails,
   buildViewerAccess,
   buildViewerEventInvite,
@@ -315,7 +315,7 @@ describe("EventsController (integration)", () => {
       const events = [buildEvent(), buildOtherUserEvent({ creatorId: TEST_USER_ID })];
       const asMember = (event: (typeof events)[number]) => ({
         ...event,
-        eventAccesses: [buildParticipantAccess({ eventId: event.id })],
+        eventAccesses: [buildContributorAccess({ eventId: event.id })],
         _count: { eventAccesses: 5 },
       });
       prisma.event.findMany.mockResolvedValueOnce(events).mockResolvedValueOnce(events.map(asMember));
@@ -350,7 +350,7 @@ describe("EventsController (integration)", () => {
     const setupJoinableInvite = (event: Event = buildEvent(), token = TEST_INVITE_TOKEN) => {
       prisma.eventInvite.findUnique.mockResolvedValue(buildEventInvite({ eventId: event.id, token }));
       prisma.event.findUnique.mockResolvedValue(event);
-      const joined = buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: event.id });
+      const joined = buildContributorAccess({ userId: TEST_OTHER_USER_ID, eventId: event.id });
       mockCallerRole(joined);
       prisma.eventAccess.create.mockResolvedValue(joined);
     };
@@ -367,11 +367,11 @@ describe("EventsController (integration)", () => {
         .expect(201);
 
       const body = response.body as WrappedResponse<EventResponseBody>;
-      expect(body.data).toMatchObject(expectedEventResponse(event, null, [], AccessLevel.PARTICIPANT));
+      expect(body.data).toMatchObject(expectedEventResponse(event, null, [], AccessLevel.CONTRIBUTOR));
       expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({ where: { token: TEST_INVITE_TOKEN } });
       expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: event.id } });
       expect(prisma.eventAccess.create).toHaveBeenCalledWith({
-        data: { userId: TEST_OTHER_USER_ID, eventId: event.id, accessLevel: AccessLevel.PARTICIPANT },
+        data: { userId: TEST_OTHER_USER_ID, eventId: event.id, accessLevel: AccessLevel.CONTRIBUTOR },
       });
     });
 
@@ -610,7 +610,7 @@ describe("EventsController (integration)", () => {
         title: event.title,
         date: event.date.toISOString(),
         invitationUrl: buildInvitationUrl(TEST_INVITE_TOKEN),
-        accessLevel: "PARTICIPANT",
+        accessLevel: "CONTRIBUTOR",
         galleryState: expect.any(String) as string,
         galleryOpensAt: event.galleryOpensAt.toISOString(),
         galleryClosesAt: "2099-11-17T00:00:00.000Z",
@@ -659,7 +659,7 @@ describe("EventsController (integration)", () => {
 
     it("returns ALREADY_A_MEMBER with the event's id to a member", async () => {
       setupPreview();
-      prisma.eventAccess.findUnique.mockResolvedValue(buildParticipantAccess({ userId: TEST_OTHER_USER_ID }));
+      prisma.eventAccess.findUnique.mockResolvedValue(buildContributorAccess({ userId: TEST_OTHER_USER_ID }));
 
       const response = await preview(200);
 
@@ -842,8 +842,8 @@ describe("EventsController (integration)", () => {
       await request(httpServer).patch(path()).send(updateEventPayload()).expect(401);
     });
 
-    it("returns 403 when the caller is a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 when the caller is a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       const response = await request(httpServer).patch(path()).set(authHeader()).send(updateEventPayload()).expect(403);
 
@@ -890,8 +890,8 @@ describe("EventsController (integration)", () => {
       });
     });
 
-    it("returns 403 when the caller is a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 when the caller is a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
@@ -1004,8 +1004,8 @@ describe("EventsController (integration)", () => {
       await request(httpServer).delete(path()).expect(401);
     });
 
-    it("returns 403 when the caller is a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 when the caller is a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       const response = await request(httpServer).delete(path()).set(authHeader()).expect(403);
 
@@ -1018,8 +1018,8 @@ describe("EventsController (integration)", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/leave`;
 
     it("with ?photos=DELETE, deletes the leaver's photos in the event and purges them", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
-      prisma.eventAccess.delete.mockResolvedValue(buildParticipantAccess());
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
+      prisma.eventAccess.delete.mockResolvedValue(buildContributorAccess());
       prisma.photo.findMany.mockResolvedValue([{ id: TEST_PHOTO_ID, s3Key: "photos/u/e/p", sizeBytes: 1000 }] as never);
       prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
       prisma.report.updateMany.mockResolvedValue({ count: 0 });
@@ -1033,8 +1033,8 @@ describe("EventsController (integration)", () => {
     });
 
     it("keeps the leaver's photos by default", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
-      prisma.eventAccess.delete.mockResolvedValue(buildParticipantAccess());
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
+      prisma.eventAccess.delete.mockResolvedValue(buildContributorAccess());
 
       await request(httpServer).post(path()).set(authHeader()).expect(204);
 
@@ -1048,9 +1048,9 @@ describe("EventsController (integration)", () => {
       expect(prisma.eventAccess.delete).not.toHaveBeenCalled();
     });
 
-    it("returns 204 when a participant leaves the event", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
-      prisma.eventAccess.delete.mockResolvedValue(buildParticipantAccess());
+    it("returns 204 when a contributor leaves the event", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
+      prisma.eventAccess.delete.mockResolvedValue(buildContributorAccess());
 
       await request(httpServer).post(path()).set(authHeader()).expect(204);
 
@@ -1082,12 +1082,12 @@ describe("EventsController (integration)", () => {
   describe("GET /events/:eventId/participants", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/participants`;
 
-    it("returns 200 and a mapped participant roster", async () => {
+    it("returns 200 and a mapped contributor roster", async () => {
       const organizerRow = buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails());
       const target = buildTargetUserWithDetails();
       const avatarS3Key = `avatars/${TEST_TARGET_USER_ID}/99999999-9999-9999-9999-999999999999`;
       const targetRow = buildEventAccessWithUser(
-        buildTargetParticipantAccess(),
+        buildTargetContributorAccess(),
         { ...target, details: { ...target.details!, avatarS3Key } },
         {
           blockedByCaller: true,
@@ -1115,7 +1115,7 @@ describe("EventsController (integration)", () => {
           userId: TEST_TARGET_USER_ID,
           username: "target",
           name: "Target User",
-          accessLevel: AccessLevel.PARTICIPANT,
+          accessLevel: AccessLevel.CONTRIBUTOR,
           avatarUrl: "https://s3.example/avatar?sig=1",
           isBlockedByCaller: true,
           photoCount: 0,
@@ -1135,7 +1135,7 @@ describe("EventsController (integration)", () => {
     it("leaves out a member whose account is being deleted", async () => {
       const organizerRow = buildEventAccessWithUser(buildOrganizerAccess(), buildUserWithDetails());
       const leavingRow = buildEventAccessWithUser(
-        buildTargetParticipantAccess(),
+        buildTargetContributorAccess(),
         { ...buildTargetUserWithDetails(), deletionStartedAt: new Date("2026-06-10T12:00:00.000Z") },
         { blockedByCaller: false },
       );
@@ -1166,14 +1166,14 @@ describe("EventsController (integration)", () => {
     const path = (targetUserId = TEST_TARGET_USER_ID) =>
       `${EVENTS_BASE_PATH}/${TEST_EVENT_ID}/participants/${targetUserId}/access`;
 
-    it("returns 200 and the updated participant response", async () => {
+    it("returns 200 and the updated contributor response", async () => {
       const targetAccessWithUser = buildEventAccessWithUser(
-        buildTargetParticipantAccess({ accessLevel: AccessLevel.ORGANIZER }),
+        buildTargetContributorAccess({ accessLevel: AccessLevel.ORGANIZER }),
         buildTargetUserWithDetails(),
       );
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
       prisma.eventAccess.findUnique.mockResolvedValue(
-        buildEventAccessWithUser(buildTargetParticipantAccess(), buildTargetUserWithDetails()),
+        buildEventAccessWithUser(buildTargetContributorAccess(), buildTargetUserWithDetails()),
       );
       prisma.eventAccess.update.mockResolvedValue(targetAccessWithUser);
 
@@ -1201,15 +1201,15 @@ describe("EventsController (integration)", () => {
       const response = await request(httpServer)
         .put(path(TEST_USER_ID))
         .set(authHeader())
-        .send({ accessLevel: AccessLevel.PARTICIPANT })
+        .send({ accessLevel: AccessLevel.CONTRIBUTOR })
         .expect(403);
 
       const body = response.body as ErrorResponse;
       expectApiError(body, "CANNOT_CHANGE_OWN_ROLE");
     });
 
-    it("returns 403 when the caller is a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 when the caller is a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       const response = await request(httpServer)
         .put(path())
@@ -1228,7 +1228,7 @@ describe("EventsController (integration)", () => {
 
     const setupRemove = () => {
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
-      prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
+      prisma.eventAccess.findUnique.mockResolvedValue(buildTargetContributorAccess());
       prisma.eventAccess.deleteMany.mockResolvedValue({ count: 1 });
       // No reports filed by the removed member.
       prisma.report.updateMany.mockResolvedValue({ count: 0 });
@@ -1317,8 +1317,8 @@ describe("EventsController (integration)", () => {
       ]);
     });
 
-    it("returns 403 for a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 for a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       await request(httpServer).get(path).set(authHeader()).expect(403);
 
@@ -1347,8 +1347,8 @@ describe("EventsController (integration)", () => {
       await request(httpServer).delete(path).set(authHeader()).expect(204);
     });
 
-    it("returns 403 for a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 for a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       await request(httpServer).delete(path).set(authHeader()).expect(403);
 
@@ -1360,11 +1360,11 @@ describe("EventsController (integration)", () => {
     const path = (eventId = TEST_EVENT_ID) => `${EVENTS_BASE_PATH}/${eventId}/regenerate-url`;
 
     const setupOrganizerRegenerate = (updatedInvitationUrl = "new-invite-token") => {
-      const participantInvite = buildEventInvite();
+      const contributorInvite = buildEventInvite();
       const updatedEvent = buildEvent({ invitationUrl: updatedInvitationUrl });
       prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildOrganizerAccess()]));
-      prisma.eventInvite.findUnique.mockResolvedValue(participantInvite);
-      prisma.eventInvite.update.mockResolvedValue({ ...participantInvite, token: updatedInvitationUrl });
+      prisma.eventInvite.findUnique.mockResolvedValue(contributorInvite);
+      prisma.eventInvite.update.mockResolvedValue({ ...contributorInvite, token: updatedInvitationUrl });
       prisma.event.update.mockResolvedValue(updatedEvent);
       return updatedEvent;
     };
@@ -1379,7 +1379,7 @@ describe("EventsController (integration)", () => {
       expect(body.data.invites).toEqual([]);
       expect(body.meta.path).toBe(path());
       expect(prisma.eventInvite.findUnique).toHaveBeenCalledWith({
-        where: { eventId_accessLevel: { eventId: TEST_EVENT_ID, accessLevel: AccessLevel.PARTICIPANT } },
+        where: { eventId_accessLevel: { eventId: TEST_EVENT_ID, accessLevel: AccessLevel.CONTRIBUTOR } },
       });
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
       expect(prisma.eventInvite.update).toHaveBeenCalledTimes(1);
@@ -1390,8 +1390,8 @@ describe("EventsController (integration)", () => {
       expect(updatedEvent.invitationUrl).toBe("new-invite-token");
     });
 
-    it("returns 403 when the caller is a participant", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+    it("returns 403 when the caller is a contributor", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
       const response = await request(httpServer).post(path()).set(authHeader()).expect(403);
 
@@ -1478,7 +1478,7 @@ describe("EventsController (integration)", () => {
       });
 
       it("returns 403 when the caller is a member but not an organizer", async () => {
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildParticipantAccess()]));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(buildEvent(), [buildContributorAccess()]));
 
         const response = await send(authHeader()).expect(403);
 
@@ -1542,7 +1542,7 @@ describe("EventsController (integration)", () => {
 
       it("hides the cover from a member who reported the event", async () => {
         const event = buildEvent({ coverS3Key: COVER_S3_KEY });
-        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildParticipantAccess()]));
+        prisma.event.findUnique.mockResolvedValue(eventWithCallerAccess(event, [buildContributorAccess()]));
         prisma.report.findMany.mockResolvedValue([{ eventId: TEST_EVENT_ID, reporterId: TEST_USER_ID }] as never);
 
         const response = await request(httpServer)
@@ -1858,7 +1858,7 @@ describe("EventsController (integration)", () => {
         buildEventInvite({ eventId: TEST_OTHER_EVENT_ID, token: TEST_OTHER_INVITE_TOKEN }),
       );
       prisma.event.findUnique.mockResolvedValueOnce(event);
-      const joined = buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: TEST_OTHER_EVENT_ID });
+      const joined = buildContributorAccess({ userId: TEST_OTHER_USER_ID, eventId: TEST_OTHER_EVENT_ID });
       mockCallerRole(joined);
       prisma.eventAccess.create.mockResolvedValue(joined);
 
@@ -1870,7 +1870,7 @@ describe("EventsController (integration)", () => {
 
       prisma.event.findUnique.mockResolvedValue(
         eventWithCallerAccess(event, [
-          buildParticipantAccess({ userId: TEST_OTHER_USER_ID, eventId: TEST_OTHER_EVENT_ID }),
+          buildContributorAccess({ userId: TEST_OTHER_USER_ID, eventId: TEST_OTHER_EVENT_ID }),
         ]),
       );
 

@@ -15,8 +15,8 @@ import {
   TEST_EVENT_ID,
   buildEvent,
   buildOrganizerAccess,
-  buildParticipantAccess,
-  buildTargetParticipantAccess,
+  buildContributorAccess,
+  buildTargetContributorAccess,
   buildViewerAccess,
 } from "./helpers/events.fixtures";
 import {
@@ -98,7 +98,7 @@ describe("Moderation (integration)", () => {
     prisma.report.count.mockResolvedValue(1);
     prisma.report.findMany.mockResolvedValue([]);
     prisma.photo.count.mockResolvedValue(1);
-    prisma.eventAccess.findUnique.mockResolvedValue(buildTargetParticipantAccess());
+    prisma.eventAccess.findUnique.mockResolvedValue(buildTargetContributorAccess());
     prisma.$transaction.mockImplementation(async (fn) => (fn as (tx: unknown) => Promise<unknown>)(prisma));
     s3Service.deleteObject.mockReset().mockResolvedValue(undefined);
     s3Service.deleteObjects.mockReset().mockResolvedValue({ deleted: [], failed: [] });
@@ -127,7 +127,7 @@ describe("Moderation (integration)", () => {
 
     it("returns 201 with the existing report, creating nothing, when the caller already has an OPEN one", async () => {
       const existing = buildReport({ reason: ReportReason.SPAM });
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
       // Their open report is what hides the photo from them by now.
       prisma.photo.count.mockResolvedValue(0);
       prisma.report.findFirst.mockResolvedValue(existing);
@@ -147,7 +147,7 @@ describe("Moderation (integration)", () => {
         escalationReasons: ["SEVERE_REASON", "SEVERE_DISMISSED"],
         escalatedAt: TEST_NOW,
       });
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
       prisma.photo.count.mockResolvedValue(0);
       prisma.report.findFirst.mockResolvedValue(existing);
 
@@ -188,14 +188,14 @@ describe("Moderation (integration)", () => {
 
     it("returns 403 when the caller has not completed onboarding", async () => {
       prisma.user.findUnique.mockResolvedValue(buildUserWithoutDetails());
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
 
       await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(403);
     });
 
     it("returns 403 when the caller reports their own photo", async () => {
       prisma.photo.findUnique.mockResolvedValue(
-        photoWithAccess([buildParticipantAccess()], { addedById: TEST_USER_ID }) as never,
+        photoWithAccess([buildContributorAccess()], { addedById: TEST_USER_ID }) as never,
       );
 
       const response = await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(403);
@@ -214,7 +214,7 @@ describe("Moderation (integration)", () => {
     });
 
     it("returns 404 when the photo is hidden from the caller, as its read would", async () => {
-      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildParticipantAccess()]) as never);
+      prisma.photo.findUnique.mockResolvedValue(photoWithAccess([buildContributorAccess()]) as never);
       prisma.photo.count.mockResolvedValue(0);
 
       await request(httpServer).post(photoReportsPath()).set(authHeader()).send(payload).expect(404);
@@ -236,7 +236,7 @@ describe("Moderation (integration)", () => {
 
     it("returns 201 with the report for any member, naming no photo and no member", async () => {
       const report = buildEventReport();
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]));
       prisma.report.createManyAndReturn.mockResolvedValue([report]);
 
       const response = await request(httpServer).post(eventReportsPath()).set(authHeader()).send(payload).expect(201);
@@ -252,7 +252,7 @@ describe("Moderation (integration)", () => {
     });
 
     it("puts the event under review when this report reaches the threshold", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]));
       prisma.report.createManyAndReturn.mockResolvedValue([buildEventReport()]);
       prisma.report.findMany.mockResolvedValue(
         Array.from({ length: 3 }, () => ({ reason: ReportReason.SPAM })) as never,
@@ -323,7 +323,7 @@ describe("Moderation (integration)", () => {
 
     it("returns 201 with the report for a member reporting another member", async () => {
       const report = buildMemberReport(payload);
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]));
       prisma.report.createManyAndReturn.mockResolvedValue([report]);
 
       const response = await request(httpServer).post(memberReportsPath()).set(authHeader()).send(payload).expect(201);
@@ -335,9 +335,9 @@ describe("Moderation (integration)", () => {
 
     it("returns the receipt without the queue for a report about an organizer, which goes to the platform", async () => {
       const report = buildMemberReport({ ...payload, queue: "PLATFORM", escalationReasons: ["TARGET_IS_ORGANIZER"] });
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]));
       prisma.eventAccess.findUnique.mockResolvedValue(
-        buildTargetParticipantAccess({ accessLevel: AccessLevel.ORGANIZER }),
+        buildTargetContributorAccess({ accessLevel: AccessLevel.ORGANIZER }),
       );
       prisma.eventAccess.count.mockResolvedValue(2);
       prisma.report.createManyAndReturn.mockResolvedValue([report]);
@@ -364,7 +364,7 @@ describe("Moderation (integration)", () => {
     });
 
     it("returns 403 when the caller reports themselves", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]));
 
       const response = await request(httpServer)
         .post(memberReportsPath(TEST_USER_ID))
@@ -377,7 +377,7 @@ describe("Moderation (integration)", () => {
     });
 
     it("returns 403 when the reported user is not a member of the event", async () => {
-      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]));
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildContributorAccess()]));
       prisma.eventAccess.findUnique.mockResolvedValue(null);
 
       const response = await request(httpServer).post(memberReportsPath()).set(authHeader()).send(payload).expect(403);
@@ -444,7 +444,7 @@ describe("Moderation (integration)", () => {
     });
 
     it.each([
-      ["a participant", [buildParticipantAccess()]],
+      ["a contributor", [buildContributorAccess()]],
       ["a viewer", [buildViewerAccess()]],
     ])("returns 403 ORGANIZER_ONLY when the caller is %s", async (_label, access) => {
       prisma.event.findUnique.mockResolvedValue(eventWithAccess(access));
@@ -601,7 +601,7 @@ describe("Moderation (integration)", () => {
     });
 
     it("returns 403 when the caller is not an organizer of the report's event", async () => {
-      setup(reportWithAccess([buildParticipantAccess()]));
+      setup(reportWithAccess([buildContributorAccess()]));
 
       const response = await patch({ action: "DISMISS" }).expect(403);
 
@@ -644,7 +644,7 @@ describe("Moderation (integration)", () => {
 
   describe("PUT /users/me/blocks/:userId", () => {
     beforeEach(() => {
-      prisma.eventAccess.findFirst.mockResolvedValue(buildTargetParticipantAccess({ accessLevel: AccessLevel.VIEWER }));
+      prisma.eventAccess.findFirst.mockResolvedValue(buildTargetContributorAccess({ accessLevel: AccessLevel.VIEWER }));
       prisma.userBlock.createMany.mockResolvedValue({ count: 1 });
       prisma.userBlock.findUniqueOrThrow.mockResolvedValue(buildBlock());
     });
