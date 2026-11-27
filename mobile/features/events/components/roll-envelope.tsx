@@ -17,7 +17,7 @@ type RollEnvelopeProps = {
   sealed?: boolean;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
-  /** A button at the foot of the paper (the organizer's Share the link). */
+  /** A button at the foot of the paper (the organizer's Share link). */
   action?: ReactNode;
   /** A pencilled note under the boxes, with an arrow to the ticked one (the organizer's envelope). */
   note?: string;

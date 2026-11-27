@@ -21,7 +21,7 @@
     "viewer": "Viewer envelope for {{title}}"
   },
   "share": {
-    "cta": "Share the link",
+    "cta": "Share link",
     "message": "{{title}} · join the event\n{{url}}",
     "failedTitle": "Couldn’t share the link"
   },

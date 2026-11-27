@@ -149,7 +149,7 @@ test("05.3 shares the link of the envelope on the table", async () => {
   const user = userEvent.setup();
 
   await user.press(screen.getByRole("radio", { name: "Viewer" }));
-  await user.press(screen.getByRole("button", { name: "Share the link" }));
+  await user.press(screen.getByRole("button", { name: "Share link" }));
 
   expect(share).toHaveBeenCalledWith({
     message: "Nadia turns 30 · join the event\nhttps://events.everglow.app/invite/weekend-viewer",
@@ -253,7 +253,7 @@ test("05.6 a closed roll says no one new can join, with nothing to share", async
     "The event closed on Mon, 21 Sep and its photos were removed, so no one new can join.",
   );
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Share link" })).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeOnTheScreen();
   expect(screen.queryByLabelText(/QR code/)).not.toBeOnTheScreen();
 });
@@ -278,5 +278,5 @@ test("a suspended roll says so plainly", async () => {
   expect(
     await screen.findByText("This event was suspended for breaking our terms, so no one new can join."),
   ).toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Share link" })).not.toBeOnTheScreen();
 });

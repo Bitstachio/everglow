@@ -51,7 +51,7 @@ export const PaperBox = ({ checked }: { checked: boolean }) => (
 /**
  * An action printed on the paper, in the same mono type as the labels, in
  * ink, with its mark right after it. For the one thing a paper lets you do,
- * such as the envelope's Share the link.
+ * such as the envelope's Share link.
  */
 export const PaperButton = ({
   title,
