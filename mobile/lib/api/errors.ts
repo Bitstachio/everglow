@@ -52,6 +52,14 @@ export const createApiError = (
   return error;
 };
 
+/**
+ * A request that never left the phone because there is no network, shaped
+ * like an axios failure with a request and no response, so
+ * `isConnectionError` reads it the same way.
+ */
+export const createConnectionError = (cause: unknown): ApiError =>
+  createApiError(networkError(), { cause: { request: true, reason: cause } });
+
 export const isApiError = (error: unknown): error is ApiError => error instanceof Error && error.name === "ApiError";
 
 export const getErrorCode = (error: unknown): string | undefined => (isApiError(error) ? error.code : undefined);
