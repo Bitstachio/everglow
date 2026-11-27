@@ -14,7 +14,7 @@ const makeNewRollSchema = (t: TFunction<"create">) =>
     title: z.string().trim().min(1, t("validation.nameRequired")).max(100, t("validation.nameTooLong")),
     description: z.string().trim().max(255, t("validation.lineTooLong")),
     date: z.date(),
-    /** The film the host picked from the plan's `galleryWindowOptions`; null keeps the plan's default. */
+    /** The film the organizer picked from the plan's `galleryWindowOptions`; null keeps the plan's default. */
     galleryWindowDays: z.number().int().positive().nullable(),
   });
 
@@ -42,7 +42,7 @@ export const useNewRollForm = ({ newEvent, onCreated, onLimitReached }: UseNewRo
     galleryWindowDays: null,
   }));
   const form = useForm<NewRollValues>({ resolver: zodResolver(schema), defaultValues, mode: "onTouched" });
-  // Until the host picks a film, the plan's default is the one chosen. Null on a plan that never closes.
+  // Until the organizer picks a film, the plan's default is the one chosen. Null on a plan that never closes.
   const film = (picked: number | null) => picked ?? newEvent?.defaultGalleryWindowDays ?? null;
 
   const onSubmit = () =>

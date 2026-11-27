@@ -10,15 +10,15 @@
     "peopleCount_one": "{{count}} person so far",
     "peopleCount_other": "{{count}} people so far",
     "pickUp": "Pick up by",
-    "adds": "Adds photos",
-    "view": "View only"
+    "participant": "Participant",
+    "viewer": "Viewer"
   },
   "pickUp": {
     "never": "It stays open"
   },
   "label": {
-    "adds": "Adds-photos envelope for {{title}}",
-    "view": "View-only envelope for {{title}}"
+    "participant": "Participant envelope for {{title}}",
+    "viewer": "Viewer envelope for {{title}}"
   },
   "share": {
     "cta": "Share the link",
@@ -30,12 +30,12 @@
     "a11y": "Reset an envelope",
     "title": "Reset which envelope?",
     "choice": {
-      "adds": {
-        "title": "Adds photos",
+      "participant": {
+        "title": "Participant",
         "description": "For people who add photos"
       },
-      "view": {
-        "title": "View only",
+      "viewer": {
+        "title": "Viewer",
         "description": "For people who only look"
       }
     },

@@ -45,7 +45,7 @@ const listReports = async (
 };
 
 /**
- * Every open frame and person report on a roll, as its hosts see them: what
+ * Every open frame and person report on a roll, as its organizers see them: what
  * 10.8 lists and 10.9 decides. All pages load, so no open report is dropped.
  * Reporters are never in them.
  */

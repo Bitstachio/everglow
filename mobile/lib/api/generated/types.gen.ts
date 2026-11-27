@@ -582,7 +582,7 @@ export type InvitePreviewState =
   | "EVENT_MEMBER_LIMIT_REACHED";
 
 /**
- * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
+ * Access level granted on join: PARTICIPANT or VIEWER.
  */
 export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
 
@@ -610,7 +610,7 @@ export type InvitePreviewResponseDto = {
    */
   invitationUrl: string;
   /**
-   * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
+   * Access level granted on join: PARTICIPANT or VIEWER.
    */
   accessLevel: InviteAccessLevel;
   galleryState: GalleryState;

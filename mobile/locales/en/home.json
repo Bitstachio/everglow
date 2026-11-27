@@ -13,9 +13,9 @@
     "statusA11y": "Filter by {{status}}",
     "role": "My role",
     "roles": {
-      "ORGANIZER": "Host",
-      "PARTICIPANT": "Adds photos",
-      "VIEWER": "View only"
+      "ORGANIZER": "Organizer",
+      "PARTICIPANT": "Participant",
+      "VIEWER": "Viewer"
     },
     "roleA11y": "Filter by {{role}}",
     "sort": "Sort",

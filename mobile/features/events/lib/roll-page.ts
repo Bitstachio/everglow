@@ -8,8 +8,8 @@ import type { EventParticipantResponseDto, EventResponseDto, PhotoResponseDto } 
  * clock, so the screen owns the words and this stays testable.
  */
 
-/** Hosts send envelopes, guests add photos, view-only guests look and save. */
-export type RollRole = "host" | "guest" | "viewer";
+/** Organizers manage the event; participants add photos; viewers look and save. */
+export type RollRole = "organizer" | "participant" | "viewer";
 
 /**
  * - upcoming: 07.1 / 07.2, before the gallery opens
@@ -31,8 +31,8 @@ export const rollRole = (
 ): RollRole => {
   if (!userId) return "viewer";
   const accessLevel = participants.find((participant) => participant.userId === userId)?.accessLevel;
-  if (accessLevel === "ORGANIZER" || (accessLevel === undefined && event.creatorId === userId)) return "host";
-  return accessLevel === "VIEWER" ? "viewer" : "guest";
+  if (accessLevel === "ORGANIZER" || (accessLevel === undefined && event.creatorId === userId)) return "organizer";
+  return accessLevel === "VIEWER" ? "viewer" : "participant";
 };
 
 /** Moderation comes first: a held roll says so whatever its gallery is doing. */
@@ -81,14 +81,14 @@ export const hasOpened = (event: Pick<EventResponseDto, "galleryState" | "galler
   event.galleryState === "UPCOMING" && new Date(event.galleryOpensAt) <= now;
 
 /**
- * The left of the band. Who adds photos sees the room left; view-only guests,
- * and guests before it opens, see the frame count. A suspended roll is hidden.
+ * The left of the band. Organizers and participants see the room left;
+ * viewers, and participants before it opens, see the frame count. A suspended roll is hidden.
  */
 export type BandStock = { kind: "storage" } | { kind: "frames" } | { kind: "hidden" };
 
 export const bandStock = (stage: RollStage, role: RollRole): BandStock => {
   if (stage === "suspended") return { kind: "hidden" };
-  if (role === "viewer" || (role === "guest" && stage === "upcoming")) return { kind: "frames" };
+  if (role === "viewer" || (role === "participant" && stage === "upcoming")) return { kind: "frames" };
   return { kind: "storage" };
 };
 
@@ -162,15 +162,15 @@ export const shouldShowOpened = (
   lastVisit !== null &&
   new Date(lastVisit).getTime() < new Date(event.galleryOpensAt).getTime();
 
-/** The host named on the roll: the creator if still on it, else the first host. */
-export const hostName = (
+/** The organizer named on the event: the creator if still on it, else the first organizer. */
+export const organizerName = (
   event: Pick<EventResponseDto, "creatorId">,
   participants: EventParticipantResponseDto[],
 ): string | null => {
-  const host =
+  const organizer =
     participants.find((participant) => participant.userId === event.creatorId) ??
     participants.find((participant) => participant.accessLevel === "ORGANIZER");
-  return host ? firstName(host.name) : null;
+  return organizer ? firstName(organizer.name) : null;
 };
 
 /** A stable seed from a photo's id (FNV-1a), so its pencil ring is the same each time it's marked. */

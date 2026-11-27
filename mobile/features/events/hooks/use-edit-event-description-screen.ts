@@ -9,7 +9,7 @@ export const useEditEventDescriptionScreen = () => {
   const eventId = Array.isArray(id) ? id[0] : id;
   const eventQuery = useEventQuery(eventId);
   const event = eventQuery.data ?? null;
-  // Start from what's saved now: another host may have changed it since the roll was loaded.
+  // Start from what's saved now: another organizer may have changed it since the roll was loaded.
   const { refetch } = eventQuery;
   useEffect(() => {
     if (eventId) void refetch();

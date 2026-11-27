@@ -2,7 +2,7 @@
   "ACTIVE_EVENT_LIMIT_REACHED": "You're running as many events as the free plan allows. One frees up when an event closes or you end one early.",
   "EVENT_GALLERY_CLOSED": "This event has closed. No one can join or add photos anymore.",
   "EVENT_GALLERY_NOT_OPEN": "This event hasn't opened yet. Photos can be added from its date.",
-  "EVENT_MEMBER_LIMIT_REACHED": "This event is full. Ask the host to make room.",
+  "EVENT_MEMBER_LIMIT_REACHED": "This event is full. Ask an organizer to make room.",
   "EVENT_SCHEDULE_LOCKED": "The date and duration can only change before the event opens.",
   "EVENT_STILL_ACTIVE": "End the event, or wait for it to close, before deleting it.",
   "EVENT_STORAGE_LIMIT_REACHED": "There isn't enough room left in this event for these photos."

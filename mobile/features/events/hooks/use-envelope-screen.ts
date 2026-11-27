@@ -17,7 +17,7 @@ import {
 } from "../lib/envelope";
 
 /**
- * 05.1–05.7 The host's envelopes: one admits people who add photos, the other
+ * 05.1–05.7 The organizer's envelopes: one admits people who add photos, the other
  * people who only look. Each is shared or reset on its own while the
  * roll is open; a closed or on-hold roll shows why no one new can come in.
  */
@@ -33,27 +33,27 @@ export const useEnvelopeScreen = () => {
   const eventQuery = useEventQuery(eventId);
   const participantsQuery = useEventParticipantsQuery(eventId);
   const regenerate = useRegenerateInviteMutation(eventId ?? "");
-  const [kind, setKind] = useState<EnvelopeKind>("adds");
+  const [kind, setKind] = useState<EnvelopeKind>("participant");
   const [resetVisible, setResetVisible] = useState(false);
-  // Which envelope the reset slip will reset: the one on the table unless the host picks the other.
-  const [resetKind, setResetKind] = useState<EnvelopeKind>("adds");
+  // Which envelope the reset slip will reset: the one on the table unless the organizer picks the other.
+  const [resetKind, setResetKind] = useState<EnvelopeKind>("participant");
 
   const event = eventQuery.data;
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
   const isError = eventQuery.isError || participantsQuery.isError;
 
-  // Only hosts hold the envelopes; the API lists invites for no one else.
+  // Only organizers hold the envelopes; the API lists invites for no one else.
   const role = participantsQuery.data?.find((participant) => participant.userId === user?.id)?.accessLevel;
-  const isHost = role === "ORGANIZER";
-  const notHost = participantsQuery.isSuccess && !isHost;
+  const isOrganizer = role === "ORGANIZER";
+  const notOrganizer = participantsQuery.isSuccess && !isOrganizer;
   useEffect(() => {
-    if (notHost && eventId) router.replace(`/events/${eventId}`);
-  }, [notHost, eventId, router]);
+    if (notOrganizer && eventId) router.replace(`/events/${eventId}`);
+  }, [notOrganizer, eventId, router]);
 
   const state = event ? envelopeState(event) : "open";
   const isOpen = state === "open";
-  // Shut, the adds-photos envelope stays on the table without its code (05.6–05.7).
-  const shown: EnvelopeKind = isOpen ? kind : "adds";
+  // Shut, the participant envelope stays on the table without its code (05.6–05.7).
+  const shown: EnvelopeKind = isOpen ? kind : "participant";
 
   const pickUpBy = () => {
     if (!event) return undefined;
@@ -62,7 +62,7 @@ export const useEnvelopeScreen = () => {
   };
 
   const envelope =
-    event && isHost
+    event && isOrganizer
       ? {
           title: event.title,
           startsAt: formatDateTime(event.date),

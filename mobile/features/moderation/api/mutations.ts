@@ -91,7 +91,7 @@ export const useBlockMutation = () => {
 export type ResolveRequest = { eventId: string; reportId: string } & ResolveReportDto;
 
 /**
- * A host's decision on a frame or a person (10.9). One decision closes every
+ * An organizer's decision on a frame or a person (10.9). One decision closes every
  * open report on it: removing deletes the frame or takes the person off the
  * roll, keeping it shows a hidden frame again.
  */

@@ -13,7 +13,7 @@ import i18n from "@/i18n/instance";
 export const NOTIFICATION_CHANNELS = [
   // Account notices, TEST, and required removal notices.
   { id: "account", name: "notes.channels.account", importance: Notifications.AndroidImportance.HIGH },
-  // Host reports to check, and a photo that just hid.
+  // Organizer reports to check, and a photo that just hid.
   { id: "reports", name: "notes.channels.reports", importance: Notifications.AndroidImportance.HIGH },
   // A roll's gallery just opened.
   { id: "roll_opens", name: "notes.channels.roll_opens", importance: Notifications.AndroidImportance.HIGH },

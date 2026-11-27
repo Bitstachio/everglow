@@ -18,7 +18,7 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
 /**
  * 10.9 Decide on a frame or a person: remove the frame, remove the person,
  * or keep it, which shows a hidden frame again. One decision closes every
- * report on it. 10.10 when it's with Everglow: hosts are told no more than that.
+ * report on it. 10.10 when it's with Everglow: organizers are told no more than that.
  */
 export const useReportCheckScreen = () => {
   const { t } = useTranslation("report");
@@ -86,7 +86,7 @@ export const useReportCheckScreen = () => {
     if (!candidates.length || resolve.isPending) return;
     setError(null);
     let failure: unknown;
-    // A host can't decide on a report they filed themselves, but another
+    // An organizer can't decide on a report they filed themselves, but another
     // report on the same frame or person closes theirs with it.
     for (const report of candidates) {
       try {
@@ -99,7 +99,7 @@ export const useReportCheckScreen = () => {
       }
     }
     const code = getErrorCode(failure);
-    // Another host decided first: the list has caught up, so go back to it.
+    // Another organizer decided first: the list has caught up, so go back to it.
     if (code === "REPORT_ALREADY_RESOLVED") {
       onBack();
       return;
@@ -109,10 +109,10 @@ export const useReportCheckScreen = () => {
   };
 
   // Keep closes ordinary reports, but the API hands severe ones to Everglow
-  // instead (docs/moderation.md §3), so say so before the host taps it.
+  // instead (docs/moderation.md §3), so say so before the organizer taps it.
   const keepGoesToEverglow = (group?.decidable ?? []).some((report) => SEVERE_REASONS.includes(report.reason));
 
-  // A host can't be removed by another host's report decision, nor can you remove yourself.
+  // An organizer can't be removed by another organizer's report decision, nor can you remove yourself.
   const canRemovePerson = !!subject && subject.accessLevel !== "ORGANIZER" && subject.userId !== user?.id;
 
   return {

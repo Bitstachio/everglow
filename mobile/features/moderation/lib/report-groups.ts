@@ -1,8 +1,8 @@
 import type { ReportReason, ReportResponseDto } from "../types";
 
 /**
- * The severe reasons hosts see (`SEVERE_REPORT_REASONS` in the API). One report
- * hides a photo from members (docs/moderation.md §5, rule 3), and a host's
+ * The severe reasons organizers see (`SEVERE_REPORT_REASONS` in the API). One report
+ * hides a photo from members (docs/moderation.md §5, rule 3), and an organizer's
  * dismissal hands it to Everglow instead of closing it (§3).
  */
 export const SEVERE_REASONS: readonly ReportReason[] = ["NUDITY_OR_SEXUAL", "VIOLENCE"];
@@ -10,7 +10,7 @@ export const SEVERE_REASONS: readonly ReportReason[] = ["NUDITY_OR_SEXUAL", "VIO
 /** Open reports that hide a photo from members: 3, or 2 on a roll of 3 people or fewer (§5, rule 2). */
 export const hideThreshold = (memberCount: number) => (memberCount <= 3 ? 2 : 3);
 
-/** Every open report about one frame or one person: what hosts decide on, once (10.8). */
+/** Every open report about one frame or one person: what organizers decide on, once (10.8). */
 export type ReportGroup = {
   key: string;
   kind: "frame" | "person";
@@ -23,12 +23,12 @@ export type ReportGroup = {
   reasonCount: number;
   /** Members no longer see the frame until someone decides. */
   hidden: boolean;
-  /** Every report on it is with Everglow: hosts can only look (10.10). */
+  /** Every report on it is with Everglow: organizers can only look (10.10). */
   withEverglow: boolean;
   /**
-   * The reports still with the hosts. A decision is sent on one
+   * The reports still with the organizers. A decision is sent on one
    * of them and closes the others with it; the next is tried when the API
-   * says this host filed the first (CANNOT_RESOLVE_OWN_REPORT).
+   * says this organizer filed the first (CANNOT_RESOLVE_OWN_REPORT).
    */
   decidable: ReportResponseDto[];
   newestAt: string;
@@ -57,7 +57,7 @@ const topReason = (reports: ReportResponseDto[]) => {
 
 /**
  * The open frame and person reports on a roll, one group per target, newest
- * first. Reports about the roll itself never reach hosts.
+ * first. Reports about the roll itself never reach organizers.
  */
 export const groupOpenReports = (reports: ReportResponseDto[], memberCount: number): ReportGroup[] => {
   const groups = new Map<string, ReportResponseDto[]>();
@@ -90,12 +90,12 @@ export const groupOpenReports = (reports: ReportResponseDto[], memberCount: numb
     .sort((a, b) => b.newestAt.localeCompare(a.newestAt));
 };
 
-/** The groups a host can still decide on: what "N to check" counts. Those with Everglow are listed, not counted. */
+/** The groups an organizer can still decide on: what "N to check" counts. Those with Everglow are listed, not counted. */
 export const toCheckCount = (groups: ReportGroup[]) => groups.filter((group) => !group.withEverglow).length;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Reports hosts or Everglow closed in the last seven days ("Done · 4 this week"). */
+/** Reports organizers or Everglow closed in the last seven days ("Done · 4 this week"). */
 export const doneThisWeek = (reports: ReportResponseDto[], now: Date) =>
   reports.filter(
     (report) =>

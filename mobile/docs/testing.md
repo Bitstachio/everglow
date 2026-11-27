@@ -100,7 +100,7 @@ pnpm test:integration -- features/events/screens/join-scan-screen.integration.te
 
 The scanner suite fires native barcode events at the mocked camera and stubs the clipboard and
 Settings. The envelope suite renders every preview state (06.4–06.13) from the generated SDK's
-mocked responses, joins, and unblocks the host before joining.
+mocked responses, joins, and unblocks the organizer before joining.
 Device E2E coverage remains a separate follow-up.
 
 ## New roll (chapter 04)
@@ -119,7 +119,7 @@ It covers the default time and film, picking a day and a time in the slip, the d
 lengths without a name, the guest line, a failed create, and limits that fail to load. The first
 frame goes through the photo picker, the on-device crop and the byte upload, which are mocked at
 their native boundaries; the suite checks the cover is minted and confirmed for the new roll, and
-that the roll still loads when the cover doesn't take, then opens on the host's envelope stamped
+that the roll still loads when the cover doesn't take, then opens on the organizer's envelope stamped
 Ready (`/events/[id]/envelope?ready=1`). The envelope suite checks that stamp and that closing it
 goes on to the roll.
 

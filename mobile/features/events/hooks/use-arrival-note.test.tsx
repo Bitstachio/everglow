@@ -22,7 +22,7 @@ test.each([
   ["23", "You’re in the event · 23rd"],
   ["25", "You’re in the event · 25th"],
   ["11", "You’re in the event · 11th"],
-])("says which member a guest became: %s", async (place, note) => {
+])("says which member a joiner became: %s", async (place, note) => {
   mockParams = { arrival: "joined", place };
   const { result } = await render();
   expect(result.current).toBe(note);

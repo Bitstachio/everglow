@@ -2,7 +2,7 @@ import { Text, View } from "react-native";
 
 /**
  * The note on a roll just opened from an envelope (06.6, 06.7): which member
- * the guest is, or that they were already on it. A strip of white leader with
+ * the joiner is, or that they were already on it. A strip of white leader with
  * a tick, over the top of the roll.
  */
 export const ArrivalNote = ({ label }: { label: string }) => (

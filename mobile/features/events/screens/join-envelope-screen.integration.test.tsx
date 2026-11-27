@@ -76,14 +76,15 @@ beforeEach(() => {
 });
 
 describe("06.4 The envelope", () => {
-  test("shows whose roll it is, who's on it, when to pick up, and what it admits", async () => {
+  test("shows whose event it is, who's on it, when to pick up, and what it admits", async () => {
     await renderScreen();
 
     expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
     expect(screen.getByText("Sun, 18 Oct, 16:00")).toBeOnTheScreen();
     expect(screen.getByText("24 people so far")).toBeOnTheScreen();
     expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
-    // Nothing to scan on the guest's envelope.
+    // Nothing to scan on the invitee's envelope.
+
     expect(screen.queryByLabelText(/^QR code/)).not.toBeOnTheScreen();
     // Stamped on the card: who invited you.
     expect(stampText("Invited")).toBeOnTheScreen();
@@ -96,7 +97,7 @@ describe("06.4 The envelope", () => {
     });
   });
 
-  test("06.5 says a view-only envelope lets them look", async () => {
+  test("06.5 says a viewer envelope lets them look", async () => {
     mockPreview.mockImplementation(() => previewed({ accessLevel: "VIEWER" }));
     await renderScreen();
 
@@ -104,11 +105,11 @@ describe("06.4 The envelope", () => {
     expect(stampText("by Sam")).toBeOnTheScreen();
   });
 
-  test("names the host plainly when their profile is gone, and leaves pick-up out on a roll that never closes", async () => {
+  test("names the organizer plainly when their profile is gone, and leaves pick-up out on a roll that never closes", async () => {
     mockPreview.mockImplementation(() => previewed({ host: null, galleryClosesAt: null }));
     await renderScreen();
 
-    expect(await screen.findByText("by the host", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(await screen.findByText("by the organizer", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByText("It stays open")).toBeOnTheScreen();
   });
 
@@ -216,17 +217,17 @@ describe("Refusals", () => {
     expect(mockRouter.dismissTo).toHaveBeenCalledWith("/events");
   });
 
-  test("06.8 without a host's name or a limit, the roll is still full", async () => {
+  test("06.8 without an organizer's name or a limit, the roll is still full", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_MEMBER_LIMIT_REACHED", host: null }));
     await renderScreen();
-    expect(await screen.findByText("This event holds 30 people. Ask the host to make room.")).toBeOnTheScreen();
+    expect(await screen.findByText("This event holds 30 people. Ask an organizer to make room.")).toBeOnTheScreen();
   });
 
   test("06.8 on a plan without a limit", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "EVENT_MEMBER_LIMIT_REACHED", memberLimit: null }));
     await renderScreen();
     expect(await screen.findByText(/This event/)).toBeOnTheScreen();
-    expect(screen.getByText("Ask the host to make room.")).toBeOnTheScreen();
+    expect(screen.getByText("Ask an organizer to make room.")).toBeOnTheScreen();
   });
 
   test("06.9 an envelope that doesn't open, whatever was wrong with it", async () => {
@@ -246,13 +247,15 @@ describe("Refusals", () => {
     expect(mockRouter.replace).toHaveBeenCalledWith("/join");
   });
 
-  test("06.10 removed by a host", async () => {
+  test("06.10 removed by an organizer", async () => {
     mockPreview.mockImplementation(() => previewed({ state: "REMOVED_FROM_EVENT" }));
     await renderScreen();
 
     expect(await screen.findByText(/You were removed/)).toBeOnTheScreen();
     expect(
-      screen.getByText("A host removed you, so this envelope doesn’t admit you. Only a host can let you back in."),
+      screen.getByText(
+        "An organizer removed you, so this envelope doesn’t admit you. Only an organizer can let you back in.",
+      ),
     ).toBeOnTheScreen();
     expect(stampText("Removed")).toBeOnTheScreen();
   });
@@ -292,14 +295,14 @@ describe("Refusals", () => {
     ).toBeOnTheScreen();
   });
 
-  describe("06.13 You blocked the host", () => {
+  describe("06.13 You blocked the organizer", () => {
     beforeEach(() => {
       mockPreview.mockImplementation(() =>
         previewed({ state: "ORGANIZER_BLOCKED_BY_CALLER", host: { userId: "user-sam", name: "Sam Rivera" } }),
       );
     });
 
-    test("explains, and unblocks the host then joins", async () => {
+    test("explains, and unblocks the organizer then joins", async () => {
       await renderScreen();
 
       expect(await screen.findByText(/You blocked Sam\./)).toBeOnTheScreen();

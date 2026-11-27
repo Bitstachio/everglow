@@ -27,7 +27,7 @@ import { useDeleteRoll } from "./use-delete-roll";
 
 const SLOT_MINUTES = TIME_SLOTS[1] ?? 30;
 
-// A roll has at most two envelopes: adds photos and view only.
+// A roll has at most two envelopes: participant and viewer.
 const ENVELOPE_COUNT_KEYS = [
   "event:settings.envelopeCount.0",
   "event:settings.envelopeCount.1",
@@ -56,7 +56,7 @@ export const useEventSettingsScreen = () => {
   const cover = useChangeEventCover(eventId ?? "", Boolean(event?.coverUrl));
   const participants = participantsQuery.data ?? [];
   const role = event ? rollRole(event, participants, user?.id) : "viewer";
-  const isHost = role === "host";
+  const isOrganizer = role === "organizer";
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
 
   useEffect(() => {
@@ -67,8 +67,8 @@ export const useEventSettingsScreen = () => {
 
   useEffect(() => {
     if (isLoading || !event) return;
-    if (!isHost) router.back();
-  }, [isLoading, event, isHost, router]);
+    if (!isOrganizer) router.back();
+  }, [isLoading, event, isOrganizer, router]);
 
   // Date and film lock once the gallery is no longer upcoming (EVENT_SCHEDULE_LOCKED).
   const scheduleLocked = event ? event.galleryState !== "UPCOMING" : false;
@@ -127,7 +127,7 @@ export const useEventSettingsScreen = () => {
 
   // The latest date comes with the account's limits; until then the calendar would end today.
   const canOpenWhen = !scheduleLocked && Boolean(limitsQuery.data);
-  // Everyone else on the roll: the host moving it knows already.
+  // Everyone else on the roll: the organizer moving it knows already.
   const othersOnRoll = participants.filter((participant) => participant.userId !== user?.id).length;
 
   const openWhen = () => {
@@ -233,7 +233,7 @@ export const useEventSettingsScreen = () => {
 
   return {
     event,
-    isLoading: isLoading || !event || !isHost,
+    isLoading: isLoading || !event || !isOrganizer,
     scheduleLocked,
     title: event?.title ?? "",
     subtitle,

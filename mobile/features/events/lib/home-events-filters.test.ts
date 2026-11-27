@@ -20,14 +20,14 @@ test("toggle adds and removes a filter value", () => {
 });
 
 test("filters by status and role", () => {
-  const openHost = buildEvent({
-    id: "open-host",
+  const openOrganizer = buildEvent({
+    id: "open-organizer",
     galleryState: "OPEN",
     accessLevel: "ORGANIZER",
     date: "2026-06-01T12:00:00.000Z",
   });
-  const upcomingGuest = buildEvent({
-    id: "up-guest",
+  const upcomingParticipant = buildEvent({
+    id: "up-participant",
     galleryState: "UPCOMING",
     accessLevel: "PARTICIPANT",
     date: "2026-07-01T12:00:00.000Z",
@@ -38,15 +38,15 @@ test("filters by status and role", () => {
     accessLevel: "VIEWER",
     date: "2026-05-01T12:00:00.000Z",
   });
-  const events = [openHost, upcomingGuest, closedViewer];
+  const events = [openOrganizer, upcomingParticipant, closedViewer];
 
   expect(filterHomeEvents(events, DEFAULT_HOME_EVENTS_FILTERS)).toEqual(events);
   expect(filterHomeEvents(events, { ...DEFAULT_HOME_EVENTS_FILTERS, statuses: ["OPEN"] }).map((e) => e.id)).toEqual([
-    "open-host",
+    "open-organizer",
   ]);
   expect(
     filterHomeEvents(events, { ...DEFAULT_HOME_EVENTS_FILTERS, roles: ["PARTICIPANT", "VIEWER"] }).map((e) => e.id),
-  ).toEqual(["up-guest", "closed-viewer"]);
+  ).toEqual(["up-participant", "closed-viewer"]);
 });
 
 test("sorts each gallery-state group by event date", () => {

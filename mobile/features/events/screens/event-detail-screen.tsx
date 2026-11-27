@@ -42,7 +42,7 @@ import {
   bandStock,
   bandTime,
   frameSeed,
-  hostName,
+  organizerName,
   storagePair,
   type Duration,
   type SheetFrame,
@@ -87,7 +87,7 @@ const EventDetailScreen = () => {
     );
   }
 
-  const host = hostName(event, participants);
+  const organizer = organizerName(event, participants);
   const count = rollFrameCount(frames.length, event.photoCount);
 
   if (screen.openedVisible) {
@@ -180,7 +180,7 @@ const EventDetailScreen = () => {
               <Text className="font-sans-medium text-name text-text" numberOfLines={1}>
                 {item.name}
               </Text>
-              {item.accessLevel === "ORGANIZER" ? <EdgePrint>{t("closed.host")}</EdgePrint> : null}
+              {item.accessLevel === "ORGANIZER" ? <EdgePrint>{t("closed.organizer")}</EdgePrint> : null}
             </View>
           )}
           contentContainerStyle={{ paddingBottom: 32 }}
@@ -190,7 +190,7 @@ const EventDetailScreen = () => {
             <ArrivalNote label={screen.arrivalNote} />
           </View>
         ) : null}
-        {/* A failed Leave, or someone a host took off the roll. */}
+        {/* A failed Leave, or someone an organizer took off the roll. */}
         {screen.notice ? <Notice message={screen.notice} className="bottom-8" /> : null}
         <Sheets screen={screen} />
         <NotesAsk {...screen.notesAsk} />
@@ -219,7 +219,7 @@ const EventDetailScreen = () => {
       />
     );
 
-  const viewOnlyBand = role === "viewer" && stage !== "suspended";
+  const viewerBand = role === "viewer" && stage !== "suspended";
 
   const timeText =
     time.kind === "opensIn" ? (
@@ -232,20 +232,20 @@ const EventDetailScreen = () => {
 
   const sub =
     stage === "upcoming"
-      ? role === "host"
+      ? role === "organizer"
         ? event.galleryWindowDays
-          ? t("sub.upcomingHost", { when: formatDateTime(event.galleryOpensAt), days: event.galleryWindowDays })
-          : t("sub.upcomingHostOpenEnded", { when: formatDateTime(event.galleryOpensAt) })
-        : host
-          ? t("sub.upcomingGuest", { when: formatDateTime(event.galleryOpensAt), host })
-          : t("sub.upcomingHostOpenEnded", { when: formatDateTime(event.galleryOpensAt) })
+          ? t("sub.upcomingOrganizer", { when: formatDateTime(event.galleryOpensAt), days: event.galleryWindowDays })
+          : t("sub.upcomingOrganizerOpenEnded", { when: formatDateTime(event.galleryOpensAt) })
+        : organizer
+          ? t("sub.upcomingParticipant", { when: formatDateTime(event.galleryOpensAt), organizer })
+          : t("sub.upcomingOrganizerOpenEnded", { when: formatDateTime(event.galleryOpensAt) })
       : stage === "suspended"
-        ? host
-          ? t("sub.hidden", { date: formatDate(event.date), host })
-          : t("sub.hiddenNoHost", { date: formatDate(event.date) })
-        : host
-          ? t("sub.open", { date: formatDate(event.date), host, count })
-          : t("sub.openNoHost", { date: formatDate(event.date), count });
+        ? organizer
+          ? t("sub.hidden", { date: formatDate(event.date), organizer })
+          : t("sub.hiddenNoOrganizer", { date: formatDate(event.date) })
+        : organizer
+          ? t("sub.open", { date: formatDate(event.date), organizer, count })
+          : t("sub.openNoOrganizer", { date: formatDate(event.date), count });
 
   const save: FooterAction = {
     title:
@@ -275,7 +275,7 @@ const EventDetailScreen = () => {
   const footer: RollFooterProps = (() => {
     switch (stage) {
       case "upcoming":
-        return role === "host"
+        return role === "organizer"
           ? { kind: "leader", title: t("footer.sendEnvelope"), mark: "↗", onPress: screen.onOpenEnvelope }
           : {
               kind: "locked",
@@ -285,24 +285,28 @@ const EventDetailScreen = () => {
       case "underReview":
         return { kind: "locked", label: t("footer.onHold"), accessibilityLabel: t("footer.onHold"), save };
       case "suspended":
-        return role === "host" && event.galleryState !== "CLOSED"
+        return role === "organizer" && event.galleryState !== "CLOSED"
           ? {
               kind: "text",
               action: { title: t("footer.cut"), accessibilityLabel: t("footer.cutLabel"), onPress: screen.onCut },
             }
           : { kind: "none" };
       default:
-        if (role === "viewer") return { kind: "viewOnly", note: t("footer.viewOnly"), save, right: people };
-        // 08.7: at the limit the shutter locks for everyone. Hosts can make room; guests are told who to ask.
+        if (role === "viewer") return { kind: "viewer", note: t("footer.viewerNote"), save, right: people };
+        // 08.7: at the limit the shutter locks for everyone. Organizers can make room; others are told who to ask.
         if (screen.isFull) {
           const label =
-            role === "host" ? t("footer.full") : host ? t("footer.fullGuest", { host }) : t("footer.fullGuestNoHost");
+            role === "organizer"
+              ? t("footer.full")
+              : organizer
+                ? t("footer.fullParticipant", { organizer })
+                : t("footer.fullParticipantNoOrganizer");
           return {
             kind: "locked",
             label,
             accessibilityLabel: t("footer.fullLabel"),
             save,
-            right: role === "host" ? moreRoom : people,
+            right: role === "organizer" ? moreRoom : people,
           };
         }
         return {
@@ -312,7 +316,7 @@ const EventDetailScreen = () => {
           busy: screen.preparing,
           onShutter: screen.onAddPhotos,
           save,
-          right: role === "host" ? invite : people,
+          right: role === "organizer" ? invite : people,
           circled: (stage === "empty" || lastDay) && !screen.preparing,
           note: stage === "empty" && !screen.preparing ? t("footer.firstShot") : undefined,
         };
@@ -333,17 +337,17 @@ const EventDetailScreen = () => {
       <RollBand
         stock={stockText}
         time={timeText}
-        // View-only guests see their role where the people count goes; People is in their footer (07.7).
+        // Viewers see their role where the people count goes; People is in their footer (07.7).
         people={
-          viewOnlyBand ? (
-            t("band.viewOnly")
+          viewerBand ? (
+            t("band.viewer")
           ) : (
             <Trans t={t} i18nKey="band.people" values={{ count: event.usage.members }} components={{ value }} />
           )
         }
-        peopleLabel={viewOnlyBand ? t("band.viewOnly") : t("band.peopleLabel", { count: event.usage.members })}
-        onPeople={viewOnlyBand || screen.selecting ? undefined : screen.onOpenPeople}
-        circleTime={(stage === "upcoming" && role === "host") || lastDay}
+        peopleLabel={viewerBand ? t("band.viewer") : t("band.peopleLabel", { count: event.usage.members })}
+        onPeople={viewerBand || screen.selecting ? undefined : screen.onOpenPeople}
+        circleTime={(stage === "upcoming" && role === "organizer") || lastDay}
         circleStock={screen.isFull}
       />
       {stage === "underReview" ? <RollNotice edge={t("notice.reviewEdge")} body={t("notice.reviewBody")} /> : null}
@@ -496,7 +500,7 @@ const EventDetailScreen = () => {
           style={{ paddingTop: insets.top }}
         >
           <TopBar
-            title={t(role === "host" ? "gallery.markedHost" : "gallery.marked", {
+            title={t(role === "organizer" ? "gallery.markedOrganizer" : "gallery.marked", {
               count: screen.selectedCount,
               mine: screen.selectedMineCount,
             })}
@@ -586,7 +590,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
   const { event, role } = screen;
   if (!event) return null;
 
-  const host = hostName(event, screen.participants);
+  const organizer = organizerName(event, screen.participants);
   const closed = screen.closedWhileSending;
   const room = screen.roomCheck;
 
@@ -614,8 +618,8 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
         {screen.sheet === "menu" ? (
           <RollMenu
             role={role}
-            canOpenSettings={role === "host" && event.status !== "SUSPENDED"}
-            canCut={role === "host" && event.galleryState !== "CLOSED"}
+            canOpenSettings={role === "organizer" && event.status !== "SUSPENDED"}
+            canCut={role === "organizer" && event.galleryState !== "CLOSED"}
             canDelete={screen.canDeleteRoll}
             canLeave={screen.canLeave}
             reports={
@@ -687,7 +691,7 @@ const Sheets = ({ screen }: { screen: ReturnType<typeof useEventDetailScreen> })
                 ? t("room.title", { fits: room.fits.length, wanted: room.wanted })
                 : t("room.noneTitle")
             }
-            body={roomBody(t, room.fits.length, formatStorageBytes(room.leftBytes), role, host)}
+            body={roomBody(t, room.fits.length, formatStorageBytes(room.leftBytes), role, organizer)}
           >
             {room.fits.length > 0 ? (
               <Button title={t("room.send", { count: room.fits.length })} mark="▸" onPress={screen.onSendWhatFits} />
@@ -781,12 +785,18 @@ const roomBody = (
   fits: number,
   left: string,
   role: string,
-  host: string | null,
+  organizer: string | null,
 ) => {
   const none = fits === 0;
-  if (role === "host") return none ? t("room.noneBodyHost", { left }) : t("room.bodyHost", { left, fits });
-  if (host) return none ? t("room.noneBodyGuest", { left, host }) : t("room.bodyGuest", { left, fits, host });
-  return none ? t("room.noneBodyGuestNoHost", { left }) : t("room.bodyGuestNoHost", { left, fits });
+  if (role === "organizer")
+    return none ? t("room.noneBodyOrganizer", { left }) : t("room.bodyOrganizer", { left, fits });
+  if (organizer)
+    return none
+      ? t("room.noneBodyParticipant", { left, organizer })
+      : t("room.bodyParticipant", { left, fits, organizer });
+  return none
+    ? t("room.noneBodyParticipantNoOrganizer", { left })
+    : t("room.bodyParticipantNoOrganizer", { left, fits });
 };
 
 export default EventDetailScreen;

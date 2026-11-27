@@ -11,7 +11,7 @@ import { View, type LayoutChangeEvent } from "react-native";
  * - leader: one leader, such as "Send the envelope" (07.1)
  * - shutter: Save all · shutter · Invite or People (07.4–07.8)
  * - locked: the shutter locked, with why (07.2, 07.10, 08.7)
- * - viewOnly: Save all · a note · People (07.7)
+ * - viewer: Save all · a note · People (07.7)
  * - text: a single text button on the right, such as "Cut the roll" (07.11)
  */
 export type RollFooterProps =
@@ -31,7 +31,7 @@ export type RollFooterProps =
       note?: string;
     }
   | { kind: "locked"; label: string; accessibilityLabel: string; save?: FooterAction; right?: FooterAction }
-  | { kind: "viewOnly"; note: string; save: FooterAction; right: FooterAction }
+  | { kind: "viewer"; note: string; save: FooterAction; right: FooterAction }
   | { kind: "text"; action: FooterAction }
   | { kind: "none" };
 
@@ -147,7 +147,7 @@ export const RollFooter = ({ bottomInset, status, ...props }: RollFooterProps & 
           </View>
         ) : null}
 
-        {props.kind === "viewOnly" ? (
+        {props.kind === "viewer" ? (
           <View className="gap-1 pb-4">
             <View className="flex-row items-center justify-between px-3">
               <TextAction action={props.save} />

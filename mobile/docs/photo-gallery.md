@@ -111,7 +111,7 @@ Save / Share / More text actions. The strip is not the shared `FilmStrip`:
 that one is a fixed, decorative row, while this one scrolls the whole roll and
 each frame is a control. Landscape originals stay uncropped with
 letterboxing. The frame menu uses a thumbnail summary and trailing action
-icons; its delete label distinguishes the caller’s own frame from a host
+icons; its delete label distinguishes the caller’s own frame from an organizer
 removing somebody else’s. Visible frame numbers remain omitted.
 
 An original-image failure on the current frame automatically renews its

@@ -19,10 +19,10 @@
     "anonymous": "Anonymous",
     "everglow": "Goes straight to Everglow",
     "footer": {
-      "photo": "The hosts see what was reported, never who reported it. You stop seeing this photo right away.",
-      "person": "The hosts see what was reported, never who reported it.",
-      "event": "Reports about an event go to Everglow. The hosts are not told who reported it.",
-      "serious": "This goes only to Everglow’s safety team, not the hosts. If someone is in danger now, call 911."
+      "photo": "The organizers see what was reported, never who reported it. You stop seeing this photo right away.",
+      "person": "The organizers see what was reported, never who reported it.",
+      "event": "Reports about an event go to Everglow. The organizers are not told who reported it.",
+      "serious": "This goes only to Everglow’s safety team, not the organizers. If someone is in danger now, call 911."
     },
     "notePlaceholder": "What happened",
     "noteLabel": "A short note about what’s wrong, optional"
@@ -63,14 +63,14 @@
   },
   "sent": {
     "photo": "Report sent · photo hidden for you",
-    "hostPhoto": "Report sent",
+    "organizerPhoto": "Report sent",
     "person": "Report sent",
     "event": "Report sent to Everglow"
   },
   "block": {
     "edge": "Block {{name}}",
     "title": "You won’t see each other.",
-    "body": "{{name}}’s photos disappear for you on every event, and yours for them. They aren’t told. Inside events {{name}} hosts, you’ll still see each other.",
+    "body": "{{name}}’s photos disappear for you on every event, and yours for them. They aren’t told. Inside events {{name}} organizes, you’ll still see each other.",
     "confirm": "Block {{name}}",
     "cancel": "Cancel",
     "done": "{{name}} is blocked",

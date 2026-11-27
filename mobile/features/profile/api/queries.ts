@@ -40,7 +40,7 @@ export const useMyLimitsQuery = ({ enabled = true }: { enabled?: boolean } = {})
   });
 
 /**
- * What deleting the account now would do to each roll it hosts alone, worked
+ * What deleting the account now would do to each roll it organizes alone, worked
  * out by the API running the deletion's own preparation and rolling it back.
  * The photos choice can change an outcome, so it is part of the key.
  */

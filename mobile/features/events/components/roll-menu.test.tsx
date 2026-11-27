@@ -12,9 +12,9 @@ const handlers = () => ({
   onLeave: jest.fn(),
 });
 
-test("a host runs the roll from the menu", async () => {
+test("an organizer runs the roll from the menu", async () => {
   const on = handlers();
-  await renderWithI18n(<RollMenu role="host" canOpenSettings canCut {...on} />);
+  await renderWithI18n(<RollMenu role="organizer" canOpenSettings canCut {...on} />);
 
   expect(screen.getByRole("button", { name: "Send the envelope" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "People" })).toBeOnTheScreen();
@@ -31,10 +31,10 @@ test("a host runs the roll from the menu", async () => {
   expect(on.onCut).toHaveBeenCalledTimes(1);
 });
 
-test("a host who can review reports sees how many wait", async () => {
+test("an organizer who can review reports sees how many wait", async () => {
   const onOpen = jest.fn();
   await renderWithI18n(
-    <RollMenu role="host" canOpenSettings canCut reports={{ toCheck: 2, onOpen }} {...handlers()} />,
+    <RollMenu role="organizer" canOpenSettings canCut reports={{ toCheck: 2, onOpen }} {...handlers()} />,
   );
 
   await userEvent.setup().press(screen.getByRole("button", { name: "Reports · 2 to check" }));
@@ -43,21 +43,21 @@ test("a host who can review reports sees how many wait", async () => {
 
 test("with nothing to check the row just says Reports", async () => {
   await renderWithI18n(
-    <RollMenu role="host" canOpenSettings canCut reports={{ toCheck: 0, onOpen: jest.fn() }} {...handlers()} />,
+    <RollMenu role="organizer" canOpenSettings canCut reports={{ toCheck: 0, onOpen: jest.fn() }} {...handlers()} />,
   );
   expect(screen.getByRole("button", { name: "Reports" })).toBeOnTheScreen();
 });
 
 test("settings and cut leave the menu when they don't apply", async () => {
-  await renderWithI18n(<RollMenu role="host" canOpenSettings={false} canCut={false} {...handlers()} />);
+  await renderWithI18n(<RollMenu role="organizer" canOpenSettings={false} canCut={false} {...handlers()} />);
   expect(screen.queryByRole("button", { name: "Event settings" })).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "End the event now" })).not.toBeOnTheScreen();
 });
 
-test("a closed roll's host deletes it in Cut's place", async () => {
+test("a closed roll's organizer deletes it in Cut's place", async () => {
   const onDelete = jest.fn();
   await renderWithI18n(
-    <RollMenu role="host" canOpenSettings canCut={false} canDelete onDelete={onDelete} {...handlers()} />,
+    <RollMenu role="organizer" canOpenSettings canCut={false} canDelete onDelete={onDelete} {...handlers()} />,
   );
 
   expect(screen.queryByRole("button", { name: "End the event now" })).not.toBeOnTheScreen();
@@ -69,7 +69,7 @@ test("a closed roll's host deletes it in Cut's place", async () => {
 test("Leave goes when it can't apply", async () => {
   await renderWithI18n(
     <RollMenu
-      role="host"
+      role="organizer"
       canOpenSettings
       canCut={false}
       canDelete
@@ -82,9 +82,9 @@ test("Leave goes when it can't apply", async () => {
   expect(screen.queryByRole("button", { name: "Leave the event" })).not.toBeOnTheScreen();
 });
 
-test("a guest gets the roll call, a report and leave", async () => {
+test("a participant gets the roll call, a report and leave", async () => {
   const on = handlers();
-  await renderWithI18n(<RollMenu role="guest" canOpenSettings={false} canCut={false} {...on} />);
+  await renderWithI18n(<RollMenu role="participant" canOpenSettings={false} canCut={false} {...on} />);
 
   expect(screen.getByRole("button", { name: "People" })).toBeOnTheScreen();
   expect(screen.getByRole("button", { name: "Leave the event" })).toBeOnTheScreen();

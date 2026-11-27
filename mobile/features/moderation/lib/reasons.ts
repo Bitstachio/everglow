@@ -10,7 +10,7 @@ export const REPORT_TARGET_COPY_KEY = {
   roll: "event",
 } as const satisfies Record<ReportTarget, string>;
 
-/** Reasons only Everglow's safety team sees: hosts are never shown them, nor what they're about. */
+/** Reasons only Everglow's safety team sees: organizers are never shown them, nor what they're about. */
 const EVERGLOW_ONLY: readonly ReportReason[] = ["CHILD_SAFETY", "NON_CONSENSUAL_INTIMATE_IMAGE"];
 
 /**
@@ -43,7 +43,7 @@ export const REPORT_REASONS = {
 export const goesOnlyToEverglow = (reason: ReportReason) => EVERGLOW_ONLY.includes(reason);
 
 /** The last reason above the "Goes straight to Everglow" rule. */
-export const lastHostReason = (target: ReportTarget): ReportReason | undefined =>
+export const lastOrganizerReason = (target: ReportTarget): ReportReason | undefined =>
   REPORT_REASONS[target].filter((reason) => !goesOnlyToEverglow(reason)).at(-1);
 
 /** The longest note the API keeps. */

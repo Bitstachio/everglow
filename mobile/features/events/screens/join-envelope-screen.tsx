@@ -11,13 +11,13 @@ import { useJoinEnvelopeScreen, type JoinRefusal } from "../hooks/use-join-envel
 
 type RefusalCopy = { stamp: string; stampSub: string; title: string; dim: string; body: string };
 
-type RefusalFacts = { host: string | null; memberLimit: number | null; closedOn: string | null };
+type RefusalFacts = { organizer: string | null; memberLimit: number | null; closedOn: string | null };
 
 /** What a returned envelope says (06.8–06.13), and the stamp on it. */
 const refusalCopy = (
   t: TFunction<"join">,
   refusal: JoinRefusal,
-  { host, memberLimit, closedOn }: RefusalFacts,
+  { organizer, memberLimit, closedOn }: RefusalFacts,
 ): RefusalCopy => {
   const returned = t("refused.returned");
   switch (refusal) {
@@ -29,9 +29,9 @@ const refusalCopy = (
         dim: memberLimit ? t("refused.full.dim") : t("refused.full.dimNoLimit"),
         body: !memberLimit
           ? t("refused.full.bodyNoLimit")
-          : host
-            ? t("refused.full.body", { host, limit: memberLimit })
-            : t("refused.full.bodyNoHost", { limit: memberLimit }),
+          : organizer
+            ? t("refused.full.body", { organizer, limit: memberLimit })
+            : t("refused.full.bodyNoOrganizer", { limit: memberLimit }),
       };
     case "NOT_VALID":
       return {
@@ -74,20 +74,20 @@ const refusalCopy = (
         body: t("refused.suspended.body"),
       };
     case "ORGANIZER_BLOCKED_BY_CALLER": {
-      const name = host ?? t("open.theHost");
+      const name = organizer ?? t("open.theOrganizer");
       return {
         stamp: returned,
         stampSub: t("refused.blocked.stamp"),
-        title: t("refused.blocked.title", { host: name }),
-        dim: t("refused.blocked.dim", { host: name }),
-        body: t("refused.blocked.body", { host: name }),
+        title: t("refused.blocked.title", { organizer: name }),
+        dim: t("refused.blocked.dim", { organizer: name }),
+        body: t("refused.blocked.body", { organizer: name }),
       };
     }
   }
 };
 
 /**
- * 06.4–06.13 The envelope a guest opens before joining: whose roll it is,
+ * 06.4–06.13 The envelope someone opens before joining: whose event it is,
  * who's on it, when to pick the photos up and what it admits, or, returned
  * and dimmed, why it doesn't admit them. Signed out, it's sealed (06.3).
  */
@@ -97,7 +97,7 @@ const JoinEnvelopeScreen = () => {
     status,
     refusal,
     envelope,
-    host,
+    organizer,
     memberLimit,
     closedOn,
     failureMessage,
@@ -112,9 +112,9 @@ const JoinEnvelopeScreen = () => {
     onScanAnother,
   } = useJoinEnvelopeScreen();
 
-  const views = envelope?.admits === "view";
-  const refused = refusal ? refusalCopy(t, refusal, { host, memberLimit, closedOn }) : null;
-  const hostName = host ?? t("open.theHost");
+  const isViewerEnvelope = envelope?.admits === "viewer";
+  const refused = refusal ? refusalCopy(t, refusal, { organizer, memberLimit, closedOn }) : null;
+  const organizerName = organizer ?? t("open.theOrganizer");
   const edge = refusal === "NOT_VALID" ? t("refused.edgeNotValid") : refusal ? envelope?.title : undefined;
 
   if (status === "sealed") {
@@ -159,12 +159,12 @@ const JoinEnvelopeScreen = () => {
           startsAt={envelope?.startsAt}
           peopleCount={envelope?.peopleCount}
           pickUpBy={envelope?.pickUpBy}
-          admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "adds" : undefined)}
+          admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "participant" : undefined)}
           stamp={
             refused ? (
               <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
             ) : status === "ready" ? (
-              <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { host: hostName })} />
+              <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { organizer: organizerName })} />
             ) : undefined
           }
           accessibilityLabel={envelope ? t("envelope.label", { title: envelope.title }) : t("envelope.labelLoading")}
@@ -188,7 +188,7 @@ const JoinEnvelopeScreen = () => {
         ) : refusal === "ORGANIZER_BLOCKED_BY_CALLER" ? (
           <>
             <Button
-              title={t("refused.blocked.unblock", { host: hostName })}
+              title={t("refused.blocked.unblock", { organizer: organizerName })}
               mark="▸"
               onPress={onUnblockAndJoin}
               isLoading={isJoining}
@@ -202,7 +202,7 @@ const JoinEnvelopeScreen = () => {
         ) : (
           <>
             <Button
-              title={views ? t("open.joinView") : t("open.joinAdds")}
+              title={isViewerEnvelope ? t("open.joinViewer") : t("open.joinParticipant")}
               mark="▸"
               onPress={onJoin}
               isLoading={isJoining || status === "loading"}

@@ -8,7 +8,7 @@ type RollCallRowProps = Omit<PressableProps, "children"> & {
   /** The person's photo, usually an `Avatar`. */
   avatar: ReactNode;
   name: string;
-  /** Edge print on the right: the role ("Host", "Adds photos", "View only"). */
+  /** Edge print on the right: the role ("Organizer", "Participant", "Viewer"). */
   roleLabel?: string;
   /** A removed person: greyed, for the removed list. */
   gone?: boolean;

@@ -39,7 +39,7 @@ const privacy: LegalDocument = {
           items: [
             "**Your account.** Your name, your username and, if you add one, a profile photo. When you accepted the terms.",
             "**Sign-in.** You sign in with an email and password, or with Apple or Google, through our sign-in provider, Auth0. Auth0 holds your email address and password. Everglow never sees your password, and our own database doesn't store your email address.",
-            "**Rolls.** For each roll: its name, description, date, cover photo, how long it stays open, who is on it and their role (host, adds photos, or view only), and its invite links.",
+            "**Rolls.** For each roll: its name, description, date, cover photo, how long it stays open, who is on it and their role (organizer, participant, or viewer), and its invite links.",
             "**Photos.** Each photo you add, as the original file, with its size, type, who added it and when. We also make a small preview and a display copy of each photo.",
             "**Safety records.** Reports you file (the reason and any note you write), people you block, removals and bans from a roll, and account suspensions.",
             "**Technical records.** Our servers log each request: the time, what was asked for, the result, and the ids of the account, roll or photo involved. Our storage keeps a record of each photo upload and download, including the IP address it came from.",
