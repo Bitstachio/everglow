@@ -174,9 +174,7 @@ const JoinEnvelopeScreen = () => {
             <Display variant="slip" dim={refused ? refused.dim : t("open.failedDim")} className="text-paper-ink">
               {refused ? refused.title : t("open.failedTitle")}
             </Display>
-            <Text className="mt-2 font-sans text-body text-paper-ink-2">
-              {refused ? refused.body : failureMessage}
-            </Text>
+            <Text className="mt-2 font-sans text-body text-paper-ink-2">{refused ? refused.body : failureMessage}</Text>
           </View>
         ) : null}
       </View>

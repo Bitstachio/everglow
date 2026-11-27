@@ -14,9 +14,7 @@ const roll = {
 };
 
 test("fills the envelope in with the roll", async () => {
-  await renderWithI18n(
-    <RollEnvelope {...roll} from="Ada Lovelace" admits="participant" code={<Text>QR</Text>} />,
-  );
+  await renderWithI18n(<RollEnvelope {...roll} from="Ada Lovelace" admits="participant" code={<Text>QR</Text>} />);
 
   expect(screen.getByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByText("Nadia turns 30")).toBeOnTheScreen();
