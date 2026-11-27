@@ -17,7 +17,7 @@ const mockResolve = jest.fn();
 const mockEvent = buildEvent({ id: "event-1", title: "Sam & Jo’s wedding" });
 const mockParticipants = [
   buildParticipant({ userId: "u-host", name: "Sam Rivera", username: "sam" }),
-  buildParticipant({ userId: "u-marcus", name: "Marcus Bell", username: "marcus", accessLevel: "PARTICIPANT" }),
+  buildParticipant({ userId: "u-marcus", name: "Marcus Bell", username: "marcus", accessLevel: "CONTRIBUTOR" }),
 ];
 // Newest first: photo-144 is the roll's 2nd frame.
 const mockPhotos = [

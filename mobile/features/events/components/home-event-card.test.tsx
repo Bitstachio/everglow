@@ -28,7 +28,7 @@ test("shows an open event's status, host role, timing, counts, and opens on pres
 });
 
 test("shows Adds photos for a participant and View only for a viewer", async () => {
-  await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Friday", accessLevel: "PARTICIPANT" })} now={NOW} />);
+  await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Friday", accessLevel: "CONTRIBUTOR" })} now={NOW} />);
   expect(screen.getByText("Adds photos")).toBeOnTheScreen();
 
   await renderWithI18n(<HomeEventCard event={buildEvent({ title: "Saturday", accessLevel: "VIEWER" })} now={NOW} />);

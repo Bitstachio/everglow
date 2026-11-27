@@ -5,7 +5,7 @@ export type EnvelopeKind = "adds" | "view";
 
 export const ENVELOPE_KINDS: EnvelopeKind[] = ["adds", "view"];
 
-const ACCESS_LEVELS: Record<EnvelopeKind, InviteAccessLevel> = { adds: "PARTICIPANT", view: "VIEWER" };
+const ACCESS_LEVELS: Record<EnvelopeKind, InviteAccessLevel> = { adds: "CONTRIBUTOR", view: "VIEWER" };
 
 export const envelopeAccessLevel = (kind: EnvelopeKind): InviteAccessLevel => ACCESS_LEVELS[kind];
 

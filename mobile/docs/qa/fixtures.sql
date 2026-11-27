@@ -21,12 +21,12 @@ begin;
 
 with defs(title, host_is_me, my_level, opens, closes, closed, review, susp) as (values
   ('QA · Upcoming (host)',  true,  'ORGANIZER',   now() + interval '2 days',  now() + interval '9 days',  null::timestamp, null::timestamp, null::timestamp),
-  ('QA · Upcoming (guest)', false, 'PARTICIPANT', now() + interval '1 day',   now() + interval '8 days',  null, null, null),
+  ('QA · Upcoming (guest)', false, 'CONTRIBUTOR', now() + interval '1 day',   now() + interval '8 days',  null, null, null),
   ('QA · Last day',         false, 'ORGANIZER',   now() - interval '6 days',  now() + interval '5 hours', null, null, null),
   ('QA · View only',        false, 'VIEWER',      now() - interval '1 day',   now() + interval '6 days',  null, null, null),
-  ('QA · Closed',           false, 'PARTICIPANT', now() - interval '20 days', now() - interval '13 days', now() - interval '13 days', null, null),
-  ('QA · Under review',     false, 'PARTICIPANT', now() - interval '1 day',   now() + interval '6 days',  null, now(), null),
-  ('QA · Suspended',        false, 'PARTICIPANT', now() - interval '1 day',   now() + interval '6 days',  null, null, now())
+  ('QA · Closed',           false, 'CONTRIBUTOR', now() - interval '20 days', now() - interval '13 days', now() - interval '13 days', null, null),
+  ('QA · Under review',     false, 'CONTRIBUTOR', now() - interval '1 day',   now() + interval '6 days',  null, now(), null),
+  ('QA · Suspended',        false, 'CONTRIBUTOR', now() - interval '1 day',   now() + interval '6 days',  null, null, now())
 ), events as (
   insert into "Event"(id, title, description, date, "creatorId", "invitationUrl", "planId",
                       "galleryWindowDays", "galleryOpensAt", "galleryClosesAt", "galleryClosedAt",
@@ -46,13 +46,13 @@ union all
 select gen_random_uuid(), '11111111-1111-4111-8111-111111111111'::uuid, e.id, 'ORGANIZER'::"AccessLevel", now()
   from events e join defs d using (title) where not d.host_is_me
 union all
-select gen_random_uuid(), '22222222-2222-4222-8222-222222222222'::uuid, e.id, 'PARTICIPANT'::"AccessLevel", now()
+select gen_random_uuid(), '22222222-2222-4222-8222-222222222222'::uuid, e.id, 'CONTRIBUTOR'::"AccessLevel", now()
   from events e;
 
 -- Both envelopes for every fixture roll, as POST /events creates them.
 insert into "EventInvite"(id, "eventId", token, "accessLevel", "updatedAt")
 select gen_random_uuid(), e.id, gen_random_uuid()::text, lvl::"AccessLevel", now()
-from "Event" e cross join (values ('PARTICIPANT'), ('VIEWER')) v(lvl)
+from "Event" e cross join (values ('CONTRIBUTOR'), ('VIEWER')) v(lvl)
 where e.title like 'QA ·%'
 on conflict do nothing;
 

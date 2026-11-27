@@ -115,7 +115,7 @@ test("filters the list by status and shows no-matches when nothing fits", async 
     data: {
       data: [
         buildEvent({ id: "live-1", title: "Sam & Jo’s wedding", galleryState: "OPEN", accessLevel: "ORGANIZER" }),
-        buildEvent({ id: "up-1", title: "Friday at Sully’s", galleryState: "UPCOMING", accessLevel: "PARTICIPANT" }),
+        buildEvent({ id: "up-1", title: "Friday at Sully’s", galleryState: "UPCOMING", accessLevel: "CONTRIBUTOR" }),
         buildEvent({ id: "done-1", title: "Lake weekend", galleryState: "CLOSED", accessLevel: "VIEWER" }),
       ],
     },

@@ -186,7 +186,7 @@ test("05.5 resets the envelope after the slip, and the new code replaces the old
   await user.press(screen.getByRole("button", { name: "Reset it" }));
 
   expect(mockRegenerate).toHaveBeenCalledWith({
-    path: { eventId: "event-1", accessLevel: "PARTICIPANT" },
+    path: { eventId: "event-1", accessLevel: "CONTRIBUTOR" },
     throwOnError: true,
   });
   expect(await screen.findByLabelText(`QR code: ${fresh}`)).toBeOnTheScreen();

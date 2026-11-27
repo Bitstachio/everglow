@@ -157,7 +157,7 @@ const openEvent = (overrides: Parameters<typeof buildEvent>[0] = {}) =>
   buildEvent({ galleryOpensAt: fromNow(-2 * DAY), galleryClosesAt: fromNow(23 * DAY), ...overrides });
 
 const host = buildParticipant();
-const guest = buildParticipant({ userId: "user-2", name: "Grace Hopper", accessLevel: "PARTICIPANT" });
+const guest = buildParticipant({ userId: "user-2", name: "Grace Hopper", accessLevel: "CONTRIBUTOR" });
 const viewer = buildParticipant({ userId: "user-3", name: "Kim Lee", accessLevel: "VIEWER" });
 
 const mockDetailResponses = ({ event = openEvent(), photos = [], participants = [host] }: DetailSeed = {}) => {

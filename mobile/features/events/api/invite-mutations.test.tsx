@@ -24,7 +24,7 @@ test("rotates one invite and puts the new links on the cached roll", async () =>
   client.setQueryData(eventsKeys.detail("event-1"), buildEvent());
   const rotated = buildEvent({
     invites: [
-      { accessLevel: "PARTICIPANT", invitationUrl: "https://events.everglow.app/invite/weekend" },
+      { accessLevel: "CONTRIBUTOR", invitationUrl: "https://events.everglow.app/invite/weekend" },
       { accessLevel: "VIEWER", invitationUrl: "https://events.everglow.app/invite/fresh" },
     ],
   });
@@ -52,7 +52,7 @@ test("leaves the cached roll alone when the reset fails", async () => {
   const { result } = await renderHook(() => useRegenerateInviteMutation("event-1"), { wrapper });
   let failure: unknown;
   await act(async () => {
-    failure = await result.current.mutateAsync("PARTICIPANT").catch((error: unknown) => error);
+    failure = await result.current.mutateAsync("CONTRIBUTOR").catch((error: unknown) => error);
   });
   await waitFor(() => expect(result.current.isError).toBe(true));
 

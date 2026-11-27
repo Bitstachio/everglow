@@ -435,7 +435,7 @@ export type RegisterDeviceDto = {
 /**
  * The caller's role on this event. Present on every event response the caller can read.
  */
-export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
+export type AccessLevel = "ORGANIZER" | "CONTRIBUTOR" | "VIEWER";
 
 export type EventInviteResponseDto = {
   accessLevel: AccessLevel;
@@ -491,7 +491,7 @@ export type EventResponseDto = {
    */
   accessLevel: AccessLevel;
   /**
-   * Participant invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.
+   * Contributor invitation link. Prefer `invites` when present; kept for older clients that expect a single URL.
    */
   invitationUrl: string;
   /**
@@ -582,9 +582,9 @@ export type InvitePreviewState =
   | "EVENT_MEMBER_LIMIT_REACHED";
 
 /**
- * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
+ * What joining with this invite grants: CONTRIBUTOR adds photos, VIEWER only looks.
  */
-export type InviteAccessLevel = "PARTICIPANT" | "VIEWER";
+export type InviteAccessLevel = "CONTRIBUTOR" | "VIEWER";
 
 export type InviteHostResponseDto = {
   userId: string;
@@ -610,7 +610,7 @@ export type InvitePreviewResponseDto = {
    */
   invitationUrl: string;
   /**
-   * What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.
+   * What joining with this invite grants: CONTRIBUTOR adds photos, VIEWER only looks.
    */
   accessLevel: InviteAccessLevel;
   galleryState: GalleryState;
@@ -2433,7 +2433,7 @@ export type EventsControllerRegenerateInvitationUrlError =
 
 export type EventsControllerRegenerateInvitationUrlResponses = {
   /**
-   * Event with new participant invitation URL
+   * Event with new contributor invitation URL
    */
   200: {
     data: EventResponseDto;

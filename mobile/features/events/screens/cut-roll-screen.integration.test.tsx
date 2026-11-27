@@ -150,7 +150,7 @@ test("a suspended roll's photos are hidden, and still go", async () => {
 test("sends anyone but a host back", async () => {
   mockUser = { id: "user-2" };
   await renderScreen({
-    participants: [buildParticipant(), buildParticipant({ userId: "user-2", accessLevel: "PARTICIPANT" })],
+    participants: [buildParticipant(), buildParticipant({ userId: "user-2", accessLevel: "CONTRIBUTOR" })],
   });
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
   expect(screen.queryByRole("button", { name: /^Cut it/ })).toBeNull();

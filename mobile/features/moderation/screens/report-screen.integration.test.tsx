@@ -16,7 +16,7 @@ const mockReportEvent = jest.fn();
 const mockEvent = buildEvent({ id: "event-1", title: "Sam & Jo’s wedding" });
 const mockParticipants = [
   buildParticipant({ userId: "u-host", name: "Sam Rivera", username: "sam" }),
-  buildParticipant({ userId: "u-leila", name: "Leila Haddad", username: "leila.h", accessLevel: "PARTICIPANT" }),
+  buildParticipant({ userId: "u-leila", name: "Leila Haddad", username: "leila.h", accessLevel: "CONTRIBUTOR" }),
 ];
 const mockPhoto = buildPhoto({ id: "photo-144", addedById: "u-leila" });
 let mockUserId = "u-guest";

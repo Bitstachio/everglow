@@ -218,7 +218,7 @@ test("sends non-hosts back", async () => {
   mockFindOne.mockResolvedValue({ data: { data: buildEvent({ creatorId: "user-1" }) } });
   mockGetParticipants.mockResolvedValue({
     data: {
-      data: [buildParticipant(), buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "PARTICIPANT" })],
+      data: [buildParticipant(), buildParticipant({ userId: "user-2", name: "Guest", accessLevel: "CONTRIBUTOR" })],
     },
   });
   mockLimits.mockResolvedValue(limits());
@@ -238,7 +238,7 @@ test("sends non-hosts back", async () => {
 test("a move names everyone else on the roll", async () => {
   await renderScreen(buildEvent({ galleryState: "UPCOMING", date: "2026-11-07T19:00:00.000Z" }), [
     buildParticipant(),
-    buildParticipant({ userId: "user-2", name: "Grace", accessLevel: "PARTICIPANT" }),
+    buildParticipant({ userId: "user-2", name: "Grace", accessLevel: "CONTRIBUTOR" }),
     buildParticipant({ userId: "user-3", name: "Alan", accessLevel: "VIEWER" }),
   ]);
   await userEvent
@@ -274,7 +274,7 @@ describe("the envelopes value comes from the roll's invites", () => {
     await renderScreen(
       buildEvent({
         galleryState: "UPCOMING",
-        invites: [{ accessLevel: "PARTICIPANT", invitationUrl: "https://events.everglow.app/invite/weekend" }],
+        invites: [{ accessLevel: "CONTRIBUTOR", invitationUrl: "https://events.everglow.app/invite/weekend" }],
       }),
     );
     expect(await screen.findByRole("button", { name: "Envelopes, One · reset" })).toBeOnTheScreen();

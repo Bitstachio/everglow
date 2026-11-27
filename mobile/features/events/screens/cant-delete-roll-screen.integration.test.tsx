@@ -125,7 +125,7 @@ test("a closed roll is deleted from settings, so this goes back", async () => {
 test("sends anyone but a host back", async () => {
   mockUser = { id: "user-2" };
   await renderScreen({
-    participants: [buildParticipant(), buildParticipant({ userId: "user-2", accessLevel: "PARTICIPANT" })],
+    participants: [buildParticipant(), buildParticipant({ userId: "user-2", accessLevel: "CONTRIBUTOR" })],
   });
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
   expect(mockListReports).not.toHaveBeenCalled();

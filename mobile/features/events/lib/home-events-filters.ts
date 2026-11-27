@@ -18,7 +18,7 @@ export const DEFAULT_HOME_EVENTS_FILTERS: HomeEventsFilters = {
 
 export const HOME_EVENTS_STATUS_OPTIONS: HomeEventsGalleryStatus[] = ["OPEN", "UPCOMING", "CLOSED"];
 
-export const HOME_EVENTS_ROLE_OPTIONS: AccessLevel[] = ["ORGANIZER", "PARTICIPANT", "VIEWER"];
+export const HOME_EVENTS_ROLE_OPTIONS: AccessLevel[] = ["ORGANIZER", "CONTRIBUTOR", "VIEWER"];
 
 export const toggleHomeEventsFilterValue = <T extends string>(values: T[], value: T): T[] =>
   values.includes(value) ? values.filter((current) => current !== value) : [...values, value];

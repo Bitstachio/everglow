@@ -5,7 +5,7 @@ test("each envelope carries the invite for its access level", () => {
   const event = buildEvent();
   expect(envelopeUrl(event, "adds")).toBe("https://events.everglow.app/invite/weekend");
   expect(envelopeUrl(event, "view")).toBe("https://events.everglow.app/invite/weekend-viewer");
-  expect(envelopeAccessLevel("adds")).toBe("PARTICIPANT");
+  expect(envelopeAccessLevel("adds")).toBe("CONTRIBUTOR");
   expect(envelopeAccessLevel("view")).toBe("VIEWER");
 });
 

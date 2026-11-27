@@ -18,7 +18,7 @@ describe("rollRole", () => {
   it("reads the caller's access level from the roll call", () => {
     const participants = [
       buildParticipant({ userId: "host", accessLevel: "ORGANIZER" }),
-      buildParticipant({ userId: "guest", accessLevel: "PARTICIPANT" }),
+      buildParticipant({ userId: "guest", accessLevel: "CONTRIBUTOR" }),
       buildParticipant({ userId: "viewer", accessLevel: "VIEWER" }),
     ];
     const event = buildEvent({ creatorId: "someone-else" });
@@ -32,7 +32,7 @@ describe("rollRole", () => {
   });
 
   it("goes by the roll call over the creator: a creator demoted to guest is a guest", () => {
-    const participants = [buildParticipant({ userId: "user-1", accessLevel: "PARTICIPANT" })];
+    const participants = [buildParticipant({ userId: "user-1", accessLevel: "CONTRIBUTOR" })];
     expect(rollRole(buildEvent({ creatorId: "user-1" }), participants, "user-1")).toBe("guest");
   });
 });
@@ -126,7 +126,7 @@ describe("storagePair", () => {
 describe("sheetFrames", () => {
   const participants = [
     buildParticipant({ userId: "user-1", name: "Ada Lovelace" }),
-    buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "PARTICIPANT", avatarUrl: "https://img/maya" }),
+    buildParticipant({ userId: "maya", name: "Maya Chen", accessLevel: "CONTRIBUTOR", avatarUrl: "https://img/maya" }),
   ];
   const photos = [
     buildPhoto({ id: "c", addedById: "maya", createdAt: "2026-10-10T11:00:00.000Z" }),

@@ -1541,9 +1541,9 @@ export const eventsControllerLiftBanMutation = (
 };
 
 /**
- * Regenerate the participant invitation URL
+ * Regenerate the contributor invitation URL
  *
- * Rotates the Participant invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.
+ * Rotates the Contributor invite only. Prefer POST /events/:eventId/invites/:accessLevel/regenerate to rotate a specific role.
  */
 export const eventsControllerRegenerateInvitationUrlMutation = (
   options?: Partial<Options<EventsControllerRegenerateInvitationUrlData>>,
@@ -1572,7 +1572,7 @@ export const eventsControllerRegenerateInvitationUrlMutation = (
 /**
  * Regenerate an invitation URL for one access level
  *
- * Organizers only. Other roles' invite links stay valid. Only PARTICIPANT and VIEWER have links; someone becomes an organizer only when an organizer promotes them.
+ * Organizers only. Other roles' invite links stay valid. Only CONTRIBUTOR and VIEWER have links; someone becomes an organizer only when an organizer promotes them.
  */
 export const eventsControllerRegenerateInviteMutation = (
   options?: Partial<Options<EventsControllerRegenerateInviteData>>,

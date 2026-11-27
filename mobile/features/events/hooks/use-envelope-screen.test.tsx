@@ -91,7 +91,7 @@ test("a roll that never closes has no pick-up date", async () => {
 });
 
 test("sends anyone but a host back to the roll", async () => {
-  mockParticipants = { data: [buildParticipant({ accessLevel: "PARTICIPANT" })] };
+  mockParticipants = { data: [buildParticipant({ accessLevel: "CONTRIBUTOR" })] };
   const { result } = await render();
 
   expect(result.current.envelope).toBeNull();

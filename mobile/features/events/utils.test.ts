@@ -17,7 +17,7 @@ import {
 
 test.each([
   ["ORGANIZER", "Organizer"],
-  ["PARTICIPANT", "Participant"],
+  ["CONTRIBUTOR", "Contributor"],
   ["VIEWER", "Viewer"],
 ] as const)("labels access level %s", (level, label) => {
   expect(getAccessLevelLabel(level)).toBe(label);
@@ -28,7 +28,7 @@ test("resolves invites with a participant fallback", () => {
   expect(resolveEventInvites(withInvites)).toEqual(withInvites.invites);
   expect(inviteUrlForRole(withInvites, "VIEWER")).toBe(withInvites.invites[1].invitationUrl);
   expect(resolveEventInvites({ invitationUrl: "https://x/invite/a", invites: [] })).toEqual([
-    { accessLevel: "PARTICIPANT", invitationUrl: "https://x/invite/a" },
+    { accessLevel: "CONTRIBUTOR", invitationUrl: "https://x/invite/a" },
   ]);
 });
 
@@ -48,7 +48,7 @@ test("filters organizers by creator id", () => {
 test("filters non-organizer roles to events the user did not create", () => {
   const mine = buildEvent();
   const theirs = buildEvent({ id: "event-2", creatorId: "user-2", title: "Picnic" });
-  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["PARTICIPANT"] }, "user-1")).toEqual([
+  expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["CONTRIBUTOR"] }, "user-1")).toEqual([
     theirs,
   ]);
   expect(filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["VIEWER"] }, "user-1")).toEqual([
@@ -60,7 +60,7 @@ test("matches events that satisfy any selected role", () => {
   const mine = buildEvent();
   const theirs = buildEvent({ id: "event-2", creatorId: "user-2", title: "Picnic" });
   expect(
-    filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["ORGANIZER", "PARTICIPANT"] }, "user-1"),
+    filterEvents([mine, theirs], { ...DEFAULT_EVENTS_LIST_FILTERS, roles: ["ORGANIZER", "CONTRIBUTOR"] }, "user-1"),
   ).toEqual([mine, theirs]);
 });
 
@@ -85,8 +85,8 @@ test("sorts events by date ascending and descending without mutating input", () 
 
 test("toggles roles for multi-select filters", () => {
   expect(toggleEventsListRole([], "ORGANIZER")).toEqual(["ORGANIZER"]);
-  expect(toggleEventsListRole(["ORGANIZER"], "PARTICIPANT")).toEqual(["ORGANIZER", "PARTICIPANT"]);
-  expect(toggleEventsListRole(["ORGANIZER", "PARTICIPANT"], "ORGANIZER")).toEqual(["PARTICIPANT"]);
+  expect(toggleEventsListRole(["ORGANIZER"], "CONTRIBUTOR")).toEqual(["ORGANIZER", "CONTRIBUTOR"]);
+  expect(toggleEventsListRole(["ORGANIZER", "CONTRIBUTOR"], "ORGANIZER")).toEqual(["CONTRIBUTOR"]);
 });
 
 test("detects active filters", () => {

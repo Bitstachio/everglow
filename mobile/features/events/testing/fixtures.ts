@@ -9,7 +9,7 @@ export const buildEvent = (overrides: Partial<Event> = {}): Event => ({
   accessLevel: "ORGANIZER",
   invitationUrl: "https://events.everglow.app/invite/weekend",
   invites: [
-    { accessLevel: "PARTICIPANT", invitationUrl: "https://events.everglow.app/invite/weekend" },
+    { accessLevel: "CONTRIBUTOR", invitationUrl: "https://events.everglow.app/invite/weekend" },
     { accessLevel: "VIEWER", invitationUrl: "https://events.everglow.app/invite/weekend-viewer" },
     { accessLevel: "ORGANIZER", invitationUrl: "https://events.everglow.app/invite/weekend-organizer" },
   ],
@@ -72,7 +72,7 @@ export const buildInvitePreview = (overrides: Partial<InvitePreviewResponseDto> 
   title: "Sam & Jo’s wedding",
   date: new Date(2026, 9, 18, 16, 0).toISOString(),
   invitationUrl: "https://events.everglow.app/invite/k8Qm2",
-  accessLevel: "PARTICIPANT",
+  accessLevel: "CONTRIBUTOR",
   galleryState: "UPCOMING",
   galleryOpensAt: new Date(2026, 9, 18, 16, 0).toISOString(),
   galleryClosesAt: new Date(2026, 10, 17, 16, 0).toISOString(),

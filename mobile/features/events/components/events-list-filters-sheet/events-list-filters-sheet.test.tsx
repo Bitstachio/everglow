@@ -23,8 +23,8 @@ test("toggles multiple role chips and applies filters", async () => {
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Filter by Organizer" }));
   expect(onChangeRole).toHaveBeenCalledWith("ORGANIZER");
-  await user.press(screen.getByRole("button", { name: "Filter by Participant" }));
-  expect(onChangeRole).toHaveBeenCalledWith("PARTICIPANT");
+  await user.press(screen.getByRole("button", { name: "Filter by Contributor" }));
+  expect(onChangeRole).toHaveBeenCalledWith("CONTRIBUTOR");
   await user.press(screen.getByRole("button", { name: "Apply filters" }));
   expect(onApply).toHaveBeenCalled();
 });
@@ -46,7 +46,7 @@ test("shows selected multi-select role chips", async () => {
     selected: true,
     disabled: false,
   });
-  expect(screen.getByRole("button", { name: "Filter by Participant" })).toHaveProp("accessibilityState", {
+  expect(screen.getByRole("button", { name: "Filter by Contributor" })).toHaveProp("accessibilityState", {
     selected: false,
     disabled: false,
   });

@@ -29,7 +29,7 @@ test("filters by status and role", () => {
   const upcomingGuest = buildEvent({
     id: "up-guest",
     galleryState: "UPCOMING",
-    accessLevel: "PARTICIPANT",
+    accessLevel: "CONTRIBUTOR",
     date: "2026-07-01T12:00:00.000Z",
   });
   const closedViewer = buildEvent({
@@ -45,7 +45,7 @@ test("filters by status and role", () => {
     "open-host",
   ]);
   expect(
-    filterHomeEvents(events, { ...DEFAULT_HOME_EVENTS_FILTERS, roles: ["PARTICIPANT", "VIEWER"] }).map((e) => e.id),
+    filterHomeEvents(events, { ...DEFAULT_HOME_EVENTS_FILTERS, roles: ["CONTRIBUTOR", "VIEWER"] }).map((e) => e.id),
   ).toEqual(["up-guest", "closed-viewer"]);
 });
 

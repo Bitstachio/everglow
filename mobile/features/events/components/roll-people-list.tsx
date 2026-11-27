@@ -14,7 +14,7 @@ type RollPeopleListProps = {
 
 export const ROLE_KEY = {
   ORGANIZER: "people.host",
-  PARTICIPANT: "people.addsPhotos",
+  CONTRIBUTOR: "people.addsPhotos",
   VIEWER: "people.viewOnly",
 } as const satisfies Record<AccessLevel, string>;
 

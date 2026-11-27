@@ -5,8 +5,8 @@ export const getAccessLevelLabel = (accessLevel: AccessLevel) => {
   switch (accessLevel) {
     case "ORGANIZER":
       return "Organizer";
-    case "PARTICIPANT":
-      return "Participant";
+    case "CONTRIBUTOR":
+      return "Contributor";
     case "VIEWER":
       return "Viewer";
     default:
@@ -28,16 +28,16 @@ export const DEFAULT_EVENTS_LIST_FILTERS: EventsListFilters = {
 
 export const EVENT_ROLE_OPTIONS: { value: AccessLevel; label: string }[] = [
   { value: "ORGANIZER", label: "Organizer" },
-  { value: "PARTICIPANT", label: "Participant" },
+  { value: "CONTRIBUTOR", label: "Contributor" },
   { value: "VIEWER", label: "Viewer" },
 ];
 
-/** Prefer `invites`; fall back to the legacy single URL as Participant. */
+/** Prefer `invites`; fall back to the legacy single URL as Contributor. */
 export const resolveEventInvites = (
   event: Pick<Event, "invitationUrl" | "invites">,
 ): { accessLevel: AccessLevel; invitationUrl: string }[] => {
   if (event.invites?.length) return event.invites;
-  return [{ accessLevel: "PARTICIPANT", invitationUrl: event.invitationUrl }];
+  return [{ accessLevel: "CONTRIBUTOR", invitationUrl: event.invitationUrl }];
 };
 
 export const inviteUrlForRole = (event: Pick<Event, "invitationUrl" | "invites">, accessLevel: AccessLevel): string => {
