@@ -72,7 +72,7 @@ afterEach(() => {
 test("says what goes now and what stays", async () => {
   await renderScreen();
 
-  expect(await screen.findByText("Hosts only")).toBeOnTheScreen();
+  expect(await screen.findByText("Organizers only")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "End the event\nnow?" })).toBeOnTheScreen();
   expect(screen.getByLabelText("Now, Nobody can add photos or join")).toBeOnTheScreen();
   expect(screen.getByLabelText("At once, All 148 photos are removed")).toBeOnTheScreen();
@@ -116,10 +116,10 @@ test("while the cut is on its way it can't be dismissed", async () => {
 
 test("a refused cut says why and stays", async () => {
   await renderScreen();
-  mockDeactivate.mockRejectedValue(createApiError("Only hosts can do that.", { status: 403 }));
+  mockDeactivate.mockRejectedValue(createApiError("Only organizers can do that.", { status: 403 }));
   await userEvent.setup().press(await screen.findByRole("button", { name: "End it and remove 148 photos" }));
 
-  expect(await screen.findByText("Only hosts can do that.")).toBeOnTheScreen();
+  expect(await screen.findByText("Only organizers can do that.")).toBeOnTheScreen();
   expect(mockBack).not.toHaveBeenCalled();
 });
 
@@ -147,7 +147,7 @@ test("a suspended roll's photos are hidden, and still go", async () => {
   expect(mockListPhotos).not.toHaveBeenCalled();
 });
 
-test("sends anyone but a host back", async () => {
+test("sends anyone but an organizer back", async () => {
   mockUser = { id: "user-2" };
   await renderScreen({
     participants: [buildParticipant(), buildParticipant({ userId: "user-2", accessLevel: "PARTICIPANT" })],

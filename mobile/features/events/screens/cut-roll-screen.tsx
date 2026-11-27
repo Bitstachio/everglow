@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CutStrip } from "../components/cut-strip";
 import { useCutRollScreen } from "../hooks/use-cut-roll-screen";
 
-/** Cut the roll: what goes and what stays, before a host closes the roll for everyone. */
+/** Cut the roll: what goes and what stays, before an organizer closes the roll for everyone. */
 const CutRollScreen = () => {
   const { t } = useTranslation("common");
   const screen = useCutRollScreen();

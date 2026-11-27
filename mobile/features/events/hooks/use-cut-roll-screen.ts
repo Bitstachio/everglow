@@ -22,7 +22,7 @@ const cutFrames = (photos: { uri: string; cacheKey: string }[], photoCount: numb
 };
 
 /**
- * Cut the roll: what goes now and what stays, before a host closes it for
+ * Cut the roll: what goes now and what stays, before an organizer closes it for
  * everyone. Ends in the same deactivate call and refreshes the roll menu's cut
  * always made; the roll then shows it closed just now.
  */
@@ -41,7 +41,7 @@ export const useCutRollScreen = () => {
   const event = eventQuery.data ?? null;
   const participants = participantsQuery.data ?? [];
   const isLoading = eventQuery.isLoading || participantsQuery.isLoading;
-  const isHost = event ? rollRole(event, participants, user?.id) === "host" : false;
+  const isOrganizer = event ? rollRole(event, participants, user?.id) === "organizer" : false;
   // A suspended roll's photos are hidden from everyone, and only an open roll has any.
   const hidden = event?.status === "SUSPENDED";
   const hasPhotos = event !== null && !hidden && event.galleryState === "OPEN";
@@ -50,10 +50,10 @@ export const useCutRollScreen = () => {
   const photoCount = hasPhotos ? (event?.photoCount ?? 0) : 0;
   const members = event?.usage.members ?? 0;
 
-  // Only a host can cut, and only a roll that hasn't closed. The roll closes
-  // once the cut lands, so don't send the host back while it does.
+  // Only an organizer can cut, and only a roll that hasn't closed. The roll closes
+  // once the cut lands, so don't send the organizer back while it does.
   const cutting = deactivate.isPending || deactivate.isSuccess;
-  const cannotCut = event !== null && !cutting && (!isHost || event.galleryState === "CLOSED");
+  const cannotCut = event !== null && !cutting && (!isOrganizer || event.galleryState === "CLOSED");
   useEffect(() => {
     if (!isLoading && cannotCut) router.back();
   }, [isLoading, cannotCut, router]);
@@ -79,7 +79,7 @@ export const useCutRollScreen = () => {
   };
 
   return {
-    isLoading: isLoading || !event || !isHost,
+    isLoading: isLoading || !event || !isOrganizer,
     edge: t("cut.edge"),
     title: t("cut.title"),
     titleDim: t("cut.titleDim"),

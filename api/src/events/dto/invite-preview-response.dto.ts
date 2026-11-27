@@ -46,7 +46,7 @@ export class InvitePreviewResponseDto {
   @ApiProperty({
     enum: INVITE_ACCESS_LEVELS,
     enumName: "InviteAccessLevel",
-    description: "What joining with this invite grants: PARTICIPANT adds photos, VIEWER only looks.",
+    description: "Access level granted on join: PARTICIPANT or VIEWER.",
   })
   accessLevel: EventInviteAccessLevel;
 

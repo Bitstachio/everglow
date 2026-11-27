@@ -135,7 +135,7 @@ test("filters the list by status and shows no-matches when nothing fits", async 
 
   await user.press(screen.getByRole("button", { name: "Filter" }));
   await screen.findByTestId("home-events-filters-sheet");
-  await user.press(screen.getByRole("button", { name: "Filter by View only" }));
+  await user.press(screen.getByRole("button", { name: "Filter by Viewer" }));
   await user.press(screen.getByRole("button", { name: "Apply" }));
 
   const empty = await screen.findByTestId("home-filters-empty");

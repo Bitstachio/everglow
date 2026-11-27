@@ -113,7 +113,7 @@ cannot name a channel that does not exist.
 | Channel        | For                                                              |
 | -------------- | ---------------------------------------------------------------- |
 | `account`      | Account notices, `TEST`, and required removals                   |
-| `reports`      | Host report queue and hidden-photo notices (`REPORT_TO_CHECK`, `PHOTO_HIDDEN`) |
+| `reports`      | Organizer report queue and hidden-photo notices (`REPORT_TO_CHECK`, `PHOTO_HIDDEN`) |
 | `roll_opens`   | Gallery opened (`GALLERY_OPENED`)                                |
 | `roll_closing` | Closing reminders (`GALLERY_CLOSING`)                            |
 

@@ -62,4 +62,4 @@ Drawn but not in the app. These are for product to confirm, not bugs:
 - The first build failed at `pod install` with `Unicode Normalization not appropriate for ASCII-8BIT`; exporting `LANG=en_US.UTF-8` fixed it. Now in the [README](../README.md).
 - Opening `localhost:8081` in a browser made Metro build web bundles (about 90 s each, failing on a native-only module) and slowed the native build. Don't.
 - The roll page's envelope and settings read invite tokens from the cached event; relaunch the app after changing rows in the database.
-- Local data changed during this run: fixture rolls were created; "QA · Last day" was cut and deleted; the test account left five fixture rolls, was banned from one and joined one; a host block was added and removed. Clean up with the commands at the top of [fixtures.sql](../fixtures.sql).
+- Local data changed during this run: fixture rolls were created; "QA · Last day" was cut and deleted; the test account left five fixture rolls, was banned from one and joined one; an organizer block was added and removed. Clean up with the commands at the top of [fixtures.sql](../fixtures.sql).

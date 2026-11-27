@@ -60,7 +60,7 @@ test("creates the roll with the trimmed name, the time and the plan's default fi
   expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "roll-1" }));
 });
 
-test("sends the line for guests and the film the host picked", async () => {
+test("sends the line for guests and the film the organizer picked", async () => {
   await renderWithI18n(<Probe />);
   const user = userEvent.setup();
   await user.paste(screen.getByLabelText("Name"), "Nadia turns 30");

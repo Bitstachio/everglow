@@ -8,17 +8,17 @@ import type { AccessLevel, EventParticipantResponseDto } from "../types";
 type RollPeopleListProps = {
   participants: EventParticipantResponseDto[];
   currentUserId?: string;
-  /** Opens someone else's actions: report, block, and for hosts remove (11.2, 11.8). */
+  /** Opens someone else's actions: report, block, and for organizers remove (11.2, 11.8). */
   onPerson: (participant: EventParticipantResponseDto) => void;
 };
 
 export const ROLE_KEY = {
-  ORGANIZER: "people.host",
-  PARTICIPANT: "people.addsPhotos",
-  VIEWER: "people.viewOnly",
+  ORGANIZER: "people.organizer",
+  PARTICIPANT: "people.participant",
+  VIEWER: "people.viewer",
 } as const satisfies Record<AccessLevel, string>;
 
-/** Who's on the roll, for the sheet over the roll: hosts first, then everyone else as they appear. */
+/** Who's on the roll, for the sheet over the roll: organizers first, then everyone else as they appear. */
 export const RollPeopleList = ({ participants, currentUserId, onPerson }: RollPeopleListProps) => {
   const { t } = useTranslation("event");
   const ordered = [

@@ -100,7 +100,7 @@ export const useDeleteEventMutation = () => {
   });
 };
 
-/** Cut the roll: closes the gallery now for everyone. Hosts only; it works on a suspended roll too. */
+/** Cut the roll: closes the gallery now for everyone. Organizers only; it works on a suspended roll too. */
 export const useDeactivateEventMutation = () => {
   const queryClient = useQueryClient();
 

@@ -15,7 +15,7 @@ type BlockSlipProps = {
 };
 
 /**
- * 10.11 Block someone. Silent and both ways; hosts still see you in their own
+ * 10.11 Block someone. Silent and both ways; organizers still see you in their own
  * rolls. Put it in a `BottomSheet`.
  */
 export const BlockSlip = ({ name, busy, error, onConfirm, onCancel }: BlockSlipProps) => {

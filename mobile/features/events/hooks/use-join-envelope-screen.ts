@@ -32,7 +32,7 @@ const isNotFound = (error: unknown) => isApiError(error) && error.status === 404
 const backToRolls = () => router.dismissTo("/events");
 
 /**
- * 06.4–06.13 The envelope a guest opens. It shows what the invite leads to
+ * 06.4–06.13 The envelope someone opens. It shows what the invite leads to
  * and joins it; someone already on the roll goes straight in (06.7), and a
  * join lands on the roll with a note saying which member they are (06.6).
  * When the envelope doesn't admit them, it says why (06.8–06.13).
@@ -121,12 +121,12 @@ export const useJoinEnvelopeScreen = () => {
               t(data.galleryState === "CLOSED" ? "envelope.pickUpGone" : "envelope.pickUp", {
                 date: formatDate(data.galleryClosesAt),
               }),
-          admits: data.accessLevel === "VIEWER" ? ("view" as const) : ("adds" as const),
+          admits: data.accessLevel === "VIEWER" ? ("viewer" as const) : ("participant" as const),
           invitationUrl: data.invitationUrl,
         }
       : null,
-    /** The host by first name, or null when their profile is gone. */
-    host: data?.host?.name ? firstName(data.host.name) : null,
+    /** The organizer by first name, or null when their profile is gone. API field is still `host`. */
+    organizer: data?.host?.name ? firstName(data.host.name) : null,
     memberLimit: data?.memberLimit ?? null,
     closedOn: data?.galleryClosesAt ? formatDate(data.galleryClosesAt) : null,
     failureMessage: preview.isError ? getErrorMessage(preview.error) : null,
@@ -136,9 +136,9 @@ export const useJoinEnvelopeScreen = () => {
     },
     // 06.13: the block is the caller's own, so lifting it is theirs too. Silent either way.
     onUnblockAndJoin: () => {
-      const hostId = data?.host?.userId;
-      if (busy || !hostId) return;
-      unblock.mutate(hostId, {
+      const organizerId = data?.host?.userId;
+      if (busy || !organizerId) return;
+      unblock.mutate(organizerId, {
         onSuccess: joinNow,
         onError: (error) => Alert.alert(t("refused.blocked.unblockFailed"), getErrorMessage(error)),
       });

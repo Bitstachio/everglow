@@ -6,10 +6,10 @@ import { getEventCoverCacheKey } from "./event-cover";
 
 type RollCoverProps = {
   eventId: string;
-  /** Null before a host sets one, and while the roll is suspended. */
+  /** Null before an organizer sets one, and while the roll is suspended. */
   uri: string | null;
   title: string;
-  /** Edge print under the name: date, host, how long the roll is. */
+  /** Edge print under the name: date, organizer, how long the roll is. */
   sub: string;
   /** Upcoming: the cover is dimmed, the frames still unexposed (07.1). The name stays bright. */
   dim?: boolean;

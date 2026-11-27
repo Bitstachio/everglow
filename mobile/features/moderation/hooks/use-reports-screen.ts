@@ -59,7 +59,7 @@ export const useReportsScreen = () => {
   return {
     title: toCheck ? t("check.top", { count: toCheck }) : t("check.topNone"),
     rows,
-    /** What hosts can still decide; rows with Everglow are listed but not counted. */
+    /** What organizers can still decide; rows with Everglow are listed but not counted. */
     toCheck,
     done: doneThisWeek(recentQuery.data ?? [], now),
     // Names and frame numbers come with the roll call and the frames, so wait for them too.

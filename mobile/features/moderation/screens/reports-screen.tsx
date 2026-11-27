@@ -10,7 +10,7 @@ import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { ReportRow } from "../components/report-row";
 import { useReportsScreen } from "../hooks/use-reports-screen";
 
-/** 10.8 To check: the reports on a roll, for its hosts. */
+/** 10.8 To check: the reports on a roll, for its organizers. */
 const ReportsScreen = () => {
   const { t } = useTranslation(["report", "common"]);
   const screen = useReportsScreen();

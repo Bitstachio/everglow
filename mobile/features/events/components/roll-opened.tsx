@@ -17,7 +17,7 @@ type RollOpenedProps = {
   counterLabel: string;
   counterAccessibilityLabel: string;
   backLabel: string;
-  /** "Add the first photos", or "Look at the roll" for view-only guests. */
+  /** "Add the first photos", or "Look at the roll" for viewers. */
   action: { title: string; mark: string; onPress: () => void };
   onBack: () => void;
 };

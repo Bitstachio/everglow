@@ -10,16 +10,16 @@ import type { EventParticipantResponseDto } from "../types";
 
 type PersonMenuProps = {
   person: EventParticipantResponseDto;
-  /** Their role in edge print: "Adds photos". */
+  /** Their role in edge print: "Participant". */
   roleLabel: string;
   onReport: () => void;
   onBlock: () => void;
   onUnblock: () => void;
-  /** Hosts only, for someone who isn't a host. */
+  /** Organizers only, for someone who isn't an organizer. */
   onRemove?: () => void;
 };
 
-/** 11.2 / 11.8 A person on the roll call: report them, block or unblock them, and for hosts remove them. */
+/** 11.2 / 11.8 A person on the roll call: report them, block or unblock them, and for organizers remove them. */
 export const PersonMenu = ({ person, roleLabel, onReport, onBlock, onUnblock, onRemove }: PersonMenuProps) => {
   const { t } = useTranslation(["report", "event"]);
   const name = person.name || t("event:people.unknown");

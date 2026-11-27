@@ -9,7 +9,7 @@ import { useReportMutation } from "../api/mutations";
 import { useReportedPhotoQuery } from "../api/queries";
 import {
   goesOnlyToEverglow,
-  lastHostReason,
+  lastOrganizerReason,
   REPORT_NOTE_MAX,
   REPORT_REASONS,
   REPORT_TARGET_COPY_KEY,
@@ -52,9 +52,9 @@ export const useReportScreen = () => {
   const photo = photoQuery.data ?? null;
   const subjectId = target === "frame" ? photo?.addedById : userId;
   const subject = participants.find((participant) => participant.userId === subjectId) ?? null;
-  // Hosts go on seeing a frame they report in their own roll: they're the ones who judge it.
+  // Organizers go on seeing a frame they report in their own roll: they're the ones who judge it.
   const { user } = useAuth();
-  const isHost = participants.some(
+  const isOrganizer = participants.some(
     (participant) => participant.userId === user?.id && participant.accessLevel === "ORGANIZER",
   );
   // Until the roll call loads, or for someone who has left it.
@@ -142,10 +142,10 @@ export const useReportScreen = () => {
       label: t(`reasons.${REPORT_TARGET_COPY_KEY[target]}.${value}` as "reasons.photo.SPAM"),
       checked: value === reason,
     })),
-    dividerAfter: lastHostReason(target),
+    dividerAfter: lastOrganizerReason(target),
     footer: serious
       ? t("ticket.footer.serious")
-      : target === "frame" && isHost
+      : target === "frame" && isOrganizer
         ? t("ticket.footer.person")
         : t(`ticket.footer.${REPORT_TARGET_COPY_KEY[target]}`),
     reason,
