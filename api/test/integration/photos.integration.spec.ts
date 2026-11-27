@@ -6,7 +6,7 @@ import { DeepMockProxy, mockReset } from "jest-mock-extended";
 import { resolveApiErrorMessage } from "src/common/errors/api-error-codes";
 import { REMOVED_IMAGE_REPORTS } from "src/moderation/evidence/identical-copies.service";
 import { PhotoHashBackfillService } from "src/photos/photo-hash-backfill.service";
-import { STORAGE_RESERVATION_MAX_ATTEMPTS } from "src/photos/photos.constants";
+import { STORAGE_RESERVATION_MAX_ATTEMPTS, buildPhotoS3Key } from "src/photos/photos.constants";
 import { encodeKeysetCursor } from "src/common/pagination/keyset-cursor";
 import { S3Service } from "src/sdk/aws/s3/s3.service";
 import { API_GLOBAL_PREFIX } from "src/swagger/swagger.config";
@@ -52,7 +52,7 @@ type ErrorResponse = {
 };
 
 type UploadSlotBody = { photoId: string; uploadUrl: string; expiresAt: string };
-type ConfirmResultBody = { photoId: string; status: string };
+type ConfirmResultBody = { photoId: string; status: string; existingPhotoId?: string };
 type PhotoBody = {
   id: string;
   eventId: string;
@@ -313,7 +313,7 @@ describe("PhotosController (integration)", () => {
       // The original is read once and its hash stored with the READY flip.
       expect(s3Service.sha256OfObject).toHaveBeenCalledWith(buildPhoto().s3Key, expect.anything());
       expect(prisma.photo.updateMany).toHaveBeenCalledWith({
-        where: { id: TEST_PHOTO_ID },
+        where: { id: TEST_PHOTO_ID, status: "PENDING" },
         data: { status: "READY", sha256 },
       });
       // Only the caller's own slots are considered; an unknown id is not released.
@@ -426,6 +426,66 @@ describe("PhotosController (integration)", () => {
           .send({ photoIds: [TEST_PHOTO_ID] })
           .expect(201);
       });
+    });
+
+    it("returns 201 with DUPLICATE and the photo on the roll, and removes the second copy and its slot", async () => {
+      const photo = buildPhoto({ status: "PENDING" });
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      // The caller's slots, the same rows read again under the lock, then the READY photos with these bytes.
+      prisma.photo.findMany
+        .mockResolvedValueOnce([photo])
+        .mockResolvedValueOnce([photo])
+        .mockResolvedValueOnce([{ id: TEST_OTHER_PHOTO_ID, sha256 }] as never);
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID] })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody[]>;
+      expect(body.data).toEqual([
+        { photoId: TEST_PHOTO_ID, status: "DUPLICATE", existingPhotoId: TEST_OTHER_PHOTO_ID },
+      ]);
+      // Only the caller's own READY photos in this event count: another member's copy is theirs to keep.
+      expect(prisma.photo.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { eventId: TEST_EVENT_ID, addedById: TEST_USER_ID, status: "READY", sha256: { in: [sha256] } },
+        }),
+      );
+      expect(prisma.photo.updateMany).not.toHaveBeenCalled();
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: TEST_PHOTO_ID, status: "PENDING" } });
+      expect(s3Service.deleteObjects).toHaveBeenCalledWith(withPhotoDerivatives(photo.s3Key));
+    });
+
+    it("returns 201 with DUPLICATE for the second of two identical files in one request", async () => {
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([buildParticipantAccess()]) as never);
+      const batch = [
+        buildPhoto({ status: "PENDING" }),
+        buildPhoto({
+          id: TEST_OTHER_PHOTO_ID,
+          s3Key: buildPhotoS3Key(TEST_EVENT_ID, TEST_OTHER_PHOTO_ID),
+          status: "PENDING",
+        }),
+      ];
+      prisma.photo.findMany.mockResolvedValueOnce(batch).mockResolvedValueOnce(batch).mockResolvedValueOnce([]);
+      prisma.photo.updateMany.mockResolvedValue({ count: 1 });
+      prisma.photo.deleteMany.mockResolvedValue({ count: 1 });
+
+      const response = await request(httpServer)
+        .post(confirmPath())
+        .set(authHeader())
+        .send({ photoIds: [TEST_PHOTO_ID, TEST_OTHER_PHOTO_ID] })
+        .expect(201);
+
+      const body = response.body as WrappedResponse<ConfirmResultBody[]>;
+      expect(body.data).toEqual([
+        { photoId: TEST_PHOTO_ID, status: "READY" },
+        { photoId: TEST_OTHER_PHOTO_ID, status: "DUPLICATE", existingPhotoId: TEST_PHOTO_ID },
+      ]);
+      expect(prisma.photo.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.photo.deleteMany).toHaveBeenCalledWith({ where: { id: TEST_OTHER_PHOTO_ID, status: "PENDING" } });
     });
 
     it("returns 201 with MISSING and releases the slot when nothing was uploaded", async () => {

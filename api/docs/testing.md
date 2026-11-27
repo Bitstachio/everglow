@@ -25,8 +25,9 @@ CI: it needs a Postgres, and without `DB_TEST_DATABASE_URL` it skips and says so
 
 Every other suite mocks Prisma, so SQL that only a real Postgres can judge (`FOR UPDATE SKIP LOCKED`, lease
 equality on `timestamp(3)`, advisory locks, two instances racing) is checked here, with separate connection pools
-standing in for separate API instances. Run it before changing the notification sender's claims or settles, or
-device registration ([notifications.md](../../docs/notifications.md) §6).
+standing in for separate API instances. Run it before changing the notification sender's claims or settles,
+device registration ([notifications.md](../../docs/notifications.md) §6), or how confirm refuses a second copy of a
+photo ([uploads.md](../../docs/uploads.md#the-same-photo-twice)).
 
 1. Create an **empty** database, never a dev or shared one: the suite sends (to a fake Expo) every due
    notification in it, and refuses to start if it holds any account it did not create.
