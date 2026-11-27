@@ -153,7 +153,7 @@ test("keeps events that match any of multiple selected roles", async () => {
   const user = userEvent.setup();
   await user.press(screen.getByRole("button", { name: "Filters" }));
   await user.press(screen.getByRole("button", { name: "Filter by Organizer" }));
-  await user.press(screen.getByRole("button", { name: "Filter by Participant" }));
+  await user.press(screen.getByRole("button", { name: "Filter by Contributor" }));
   await user.press(screen.getByRole("button", { name: "Apply filters" }));
 
   expect(screen.getByText("Weekend meetup")).toBeOnTheScreen();
