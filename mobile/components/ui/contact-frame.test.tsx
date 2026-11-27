@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { ContactFrame } from "./contact-frame";
 
 test("opens on press and keeps the accessibility label without a visible frame number", async () => {
@@ -14,6 +14,36 @@ test("marks a frame that didn't make it with the warning icon, hidden from scree
   expect(screen.queryByTestId("frame-upload-error")).toBeNull();
   expect(screen.getByTestId("frame-upload-error", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.queryByText("!", { includeHiddenElements: true })).toBeNull();
+});
+
+test("shows the photo when its thumbnail is missing, and reports it ready", async () => {
+  const onPreviewReady = jest.fn();
+  const fallback = { uri: "https://bucket/photo.jpg", cacheKey: "photo:1:original" };
+  await render(
+    <ContactFrame
+      uri="https://bucket/thumb.webp"
+      cacheKey="photo:1:frame-thumbnail"
+      fallback={fallback}
+      mayBeLate={false}
+      onPreviewReady={onPreviewReady}
+      number={7}
+      accessibilityLabel="Photo 7, by Leila"
+    />,
+  );
+  // An older photo's thumbnail is tried once more before the photo stands in.
+  jest.useFakeTimers();
+  try {
+    await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    await fireEvent(screen.getByTestId("contact-frame-photo"), "error", { nativeEvent: { error: "404" } });
+  } finally {
+    jest.useRealTimers();
+  }
+  expect(screen.getByTestId("contact-frame-photo").props.source).toEqual([fallback]);
+  await fireEvent(screen.getByTestId("contact-frame-photo"), "display");
+  expect(onPreviewReady).toHaveBeenCalledTimes(1);
 });
 
 test("reports the selected state", async () => {

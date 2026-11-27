@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { FilmStrip } from "./film-strip";
 
 test("prints a blank photo's number and hides the preview strip from assistive tech", async () => {
@@ -19,6 +19,36 @@ test("caches a photo by its key, since a presigned URL changes on every fetch", 
   await render(<FilmStrip frames={[{ key: "a", uri, cacheKey: "photo:a" }]} />);
   const photo = screen.getByTestId("film-strip-photo", { includeHiddenElements: true });
   expect(JSON.stringify(photo.props.source)).toContain('"cacheKey":"photo:a"');
+});
+
+test("shows the photo in a frame whose thumbnail is missing", async () => {
+  const fallback = { uri: "https://bucket.example.com/photos/a.jpg", cacheKey: "photo:a:original" };
+  await render(
+    <FilmStrip
+      frames={[
+        { key: "a", uri: "https://bucket.example.com/a.webp", cacheKey: "photo:a:strip", fallback, mayBeLate: false },
+      ]}
+    />,
+  );
+  const photo = () => screen.getByTestId("film-strip-photo", { includeHiddenElements: true });
+  // An older photo's thumbnail is tried once more before the photo stands in.
+  jest.useFakeTimers();
+  try {
+    await fireEvent(photo(), "error", { nativeEvent: { error: "404" } });
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+    await fireEvent(photo(), "error", { nativeEvent: { error: "404" } });
+  } finally {
+    jest.useRealTimers();
+  }
+  expect(photo().props.source).toEqual([fallback]);
+});
+
+test("shows the photo in a frame with no thumbnail link", async () => {
+  const fallback = { uri: "https://bucket.example.com/photos/b.jpg", cacheKey: "photo:b:original" };
+  await render(<FilmStrip frames={[{ key: "b", fallback }]} />);
+  expect(screen.getByTestId("film-strip-photo", { includeHiddenElements: true }).props.source).toEqual([fallback]);
 });
 
 test("shows a bundled photo as it is", async () => {
