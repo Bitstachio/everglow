@@ -25,7 +25,9 @@ jest.mock("@/lib/api/generated", () => ({
   eventsControllerGetParticipants: (...args: unknown[]) => mockGetParticipants(...args),
   eventsControllerRegenerateInvite: (...args: unknown[]) => mockRegenerate(...args),
 }));
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
+jest.mock("@/context/auth-context", () => ({
+  useAuth: () => ({ user: { id: "user-1", details: { name: "Ada Lovelace" } } }),
+}));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => true }),
   useLocalSearchParams: () => mockParams,
@@ -66,10 +68,9 @@ test("05.1 shows the participant envelope with its code", async () => {
   expect(await screen.findByLabelText("Participant envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("header", { name: "Envelope · Nadia turns 30" })).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "Participant", checked: true })).toBeOnTheScreen();
-  expect(screen.getByText("they add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
+  expect(screen.getByText("Ada Lovelace")).toBeOnTheScreen();
   expect(screen.getByText("Sat, 7 Nov, 19:00")).toBeOnTheScreen();
-  expect(screen.getByText("18 people so far")).toBeOnTheScreen();
-  expect(screen.getByText("Sat, 14 Nov, then it’s gone")).toBeOnTheScreen();
+  expect(screen.getByText("Sat, 14 Nov, 19:00")).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend")).toBeOnTheScreen();
 });
 
@@ -82,7 +83,6 @@ test("05.2 switches to the viewer envelope", async () => {
 
   expect(screen.getByLabelText("Viewer envelope for Nadia turns 30")).toBeOnTheScreen();
   expect(screen.getByRole("radio", { name: "Viewer", checked: true })).toBeOnTheScreen();
-  expect(screen.getByText("they can only look and save", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByLabelText("QR code: https://events.everglow.app/invite/weekend-viewer")).toBeOnTheScreen();
 });
 
@@ -151,7 +151,7 @@ test("05.3 shares the link of the envelope on the table", async () => {
   const user = userEvent.setup();
 
   await user.press(screen.getByRole("radio", { name: "Viewer" }));
-  await user.press(screen.getByRole("button", { name: "Share the link" }));
+  await user.press(screen.getByRole("button", { name: "Share link" }));
 
   expect(share).toHaveBeenCalledWith({
     message: "Nadia turns 30 · join the event\nhttps://events.everglow.app/invite/weekend-viewer",
@@ -250,12 +250,12 @@ test("05.6 a closed roll says no one new can join, with nothing to share", async
   expect(await screen.findByLabelText("Participant envelope for Lake weekend")).toBeOnTheScreen();
   expect(screen.getByText("Closed", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByText("No new guests", { includeHiddenElements: true })).toBeOnTheScreen();
-  expect(screen.getByText("Mon, 21 Sep, gone")).toBeOnTheScreen();
+  expect(screen.getByText("Mon, 21 Sep, 12:00")).toBeOnTheScreen();
   expect(screen.getByText(/The event closed on/)).toHaveTextContent(
     "The event closed on Mon, 21 Sep and its photos were removed, so no one new can join.",
   );
   expect(screen.queryByRole("radio")).not.toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Share link" })).not.toBeOnTheScreen();
   expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeOnTheScreen();
   expect(screen.queryByLabelText(/QR code/)).not.toBeOnTheScreen();
 });
@@ -280,5 +280,5 @@ test("a suspended roll says so plainly", async () => {
   expect(
     await screen.findByText("This event was suspended for breaking our terms, so no one new can join."),
   ).toBeOnTheScreen();
-  expect(screen.queryByRole("button", { name: "Share the link" })).not.toBeOnTheScreen();
+  expect(screen.queryByRole("button", { name: "Share link" })).not.toBeOnTheScreen();
 });

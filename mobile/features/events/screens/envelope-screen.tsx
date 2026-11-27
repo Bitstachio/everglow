@@ -1,16 +1,12 @@
-import { AppIcon } from "@/components/ui/app-icon";
 import { BottomSheet } from "@/components/ui/bottom-sheet/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { OptionRow } from "@/components/ui/option-row";
 import { PaperButton } from "@/components/ui/lab-paper";
-import { FilmGrain } from "@/components/ui/film-grain";
-import { IconButton } from "@/components/ui/icon-button";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Slip } from "@/components/ui/slip";
 import { Stamp } from "@/components/ui/stamp";
-import { TopBar } from "@/components/ui/top-bar";
+import { CloseButton, TopBar } from "@/components/ui/top-bar";
 import { colorTokens } from "@/theme/tokens";
-import { X } from "phosphor-react-native";
 import { Trans, useTranslation } from "react-i18next";
 import { ScrollView, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
@@ -40,81 +36,66 @@ const EnvelopeScreen = () => {
   } = useEnvelopeScreen();
 
   return (
-    <SafeAreaView className="flex-1 bg-ground">
+    <SafeAreaView className="flex-1 bg-paper">
       <TopBar
+        tone="paper"
         title={edge ?? undefined}
         left={
-          <IconButton testID="envelope-close" accessibilityLabel={t("close")} onPress={onClose}>
-            <AppIcon icon={X} size="sm" color={colorTokens.text} />
-          </IconButton>
-        }
-        right={
           envelope && invitationUrl ? (
-            <Button
-              title={t("reset.cta")}
-              accessibilityLabel={t("reset.a11y")}
-              variant="ghost"
-              fullWidth={false}
-              onPress={onReset}
-            />
+            <PaperButton title={t("reset.cta")} onPress={onReset} accessibilityLabel={t("reset.a11y")} />
           ) : undefined
         }
+        right={<CloseButton testID="envelope-close" accessibilityLabel={t("close")} onPress={onClose} tone="paper" />}
       />
-      <ScrollView className="flex-1" contentContainerClassName="pb-6 pt-2.5">
-        {isError ? (
-          <View className="items-start gap-2 px-5 pt-4">
-            <Text className="font-sans text-body text-text-2">{t("loadFailed")}</Text>
-            <Button title={t("retry")} variant="ghost" fullWidth={false} className="-ml-2" onPress={onRetry} />
+      {isError ? (
+        <View className="items-start gap-2 px-5 pt-4">
+          <Text className="font-sans text-body text-paper-ink-2">{t("loadFailed")}</Text>
+          <PaperButton title={t("retry")} onPress={onRetry} />
+        </View>
+      ) : isLoading || !envelope ? (
+        <View testID="envelope-loading" className="flex-1 bg-paper" />
+      ) : shut ? (
+        <ScrollView className="flex-1" contentContainerClassName="flex-grow pb-6">
+          {/* No one new comes in: the envelope lies dimmed under a stamp that says why (05.6–05.7). */}
+          <View className="min-h-80 flex-1 opacity-55">
+            <RollEnvelope {...envelope} />
           </View>
-        ) : isLoading || !envelope ? (
-          <View testID="envelope-loading" className="mx-7.5 mt-14 h-80 -rotate-2 rounded-paper bg-sheet" />
-        ) : shut ? (
-          <>
-            {/* No one new comes in: the envelope lies dimmed under a stamp that says why (05.6–05.7). */}
-            <View className="mx-7.5 mt-9.5 opacity-55">
-              <RollEnvelope {...envelope} />
-            </View>
-            <View className="h-26">
-              <Stamp title={shut.stamp} subtitle={shut.stampLine} className="absolute right-14.5 top-2" />
-            </View>
-            <Text className="mt-24 px-5 font-sans text-body text-text-2">
-              <Trans
-                t={t}
-                i18nKey={`${shut.state}.body`}
-                values={{ date: shut.date }}
-                components={{ value: <Text className="font-sans-semibold text-text" /> }}
-              />
-            </Text>
-          </>
-        ) : (
-          <>
-            <View className="mx-7.5 mt-5">
-              <RollEnvelope
-                {...envelope}
-                onSelect={onSelectKind}
-                stamp={readyStamp ? <Stamp title={readyStamp} /> : undefined}
-                action={
-                  invitationUrl ? (
-                    <PaperButton title={t("share.cta")} mark="↗" onPress={() => void onShare()} />
-                  ) : undefined
-                }
-                code={
-                  invitationUrl ? (
-                    <QRCode
-                      value={invitationUrl}
-                      size={150}
-                      color={colorTokens.paperInk}
-                      backgroundColor={colorTokens.paper}
-                    />
-                  ) : undefined
-                }
-              />
-            </View>
-          </>
-        )}
-      </ScrollView>
-
-      <FilmGrain />
+          <View className="h-26">
+            <Stamp title={shut.stamp} subtitle={shut.stampLine} className="absolute right-14.5 top-2" />
+          </View>
+          <Text className="mt-8 px-5 font-sans text-body text-paper-ink-2">
+            <Trans
+              t={t}
+              i18nKey={`${shut.state}.body`}
+              values={{ date: shut.date }}
+              components={{ value: <Text className="font-sans-semibold text-paper-ink" /> }}
+            />
+          </Text>
+        </ScrollView>
+      ) : (
+        <View className="flex-1">
+          <RollEnvelope
+            {...envelope}
+            onSelect={onSelectKind}
+            stamp={readyStamp ? <Stamp title={readyStamp} /> : undefined}
+            action={
+              invitationUrl ? (
+                <PaperButton title={t("share.cta")} mark="↗" onPress={() => void onShare()} />
+              ) : undefined
+            }
+            code={
+              invitationUrl ? (
+                <QRCode
+                  value={invitationUrl}
+                  size={210}
+                  color={colorTokens.paperInk}
+                  backgroundColor={colorTokens.paper}
+                />
+              ) : undefined
+            }
+          />
+        </View>
+      )}
 
       <BottomSheet visible={reset.visible} onClose={onCloseReset}>
         <Slip title={t("reset.title")} body={reset.body}>

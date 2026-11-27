@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Display, Wordmark } from "@/components/ui/display";
-import { FilmGrain } from "@/components/ui/film-grain";
 import { SafeAreaView } from "@/components/ui/safe-area-view";
 import { Stamp } from "@/components/ui/stamp";
 import { BackButton, TopBar } from "@/components/ui/top-bar";
@@ -89,8 +88,8 @@ const refusalCopy = (
 
 /**
  * 06.4–06.13 The envelope someone opens before joining: whose event it is,
- * who's on it, when to pick the photos up and what it admits, or, returned
- * and dimmed, why it doesn't admit them. Signed out, it's sealed (06.3).
+ * when it starts and ends and what it admits, or, returned and dimmed, why
+ * it doesn't admit them. Signed out, it's sealed (06.3).
  */
 const JoinEnvelopeScreen = () => {
   const { t } = useTranslation("join");
@@ -120,66 +119,62 @@ const JoinEnvelopeScreen = () => {
 
   if (status === "sealed") {
     return (
-      <SafeAreaView className="flex-1 bg-ground">
+      <SafeAreaView className="flex-1 bg-paper">
         <View className="h-11 flex-row items-center px-5">
-          <Wordmark />
+          <Wordmark className="text-paper-ink" />
         </View>
         <View className="flex-1">
-          <View className="mx-7.5 mt-4">
-            <RollEnvelope
-              title=""
-              sealed
-              stamp={<Stamp title={t("sealed.stamp")} subtitle={t("sealed.stampSub")} />}
-              accessibilityLabel={t("sealed.label")}
-            />
-          </View>
-          <View className="mt-auto px-5 pb-4">
-            <Display variant="slip" dim={t("sealed.dim")}>
+          <RollEnvelope
+            title=""
+            sealed
+            stamp={<Stamp title={t("sealed.stamp")} subtitle={t("sealed.stampSub")} />}
+            accessibilityLabel={t("sealed.label")}
+          />
+          <View className="px-5 pb-4">
+            <Display variant="slip" dim={t("sealed.dim")} className="text-paper-ink">
               {t("sealed.title")}
             </Display>
-            <Text className="mt-2 font-sans text-body text-text-2">{t("sealed.body")}</Text>
+            <Text className="mt-2 font-sans text-body text-paper-ink-2">{t("sealed.body")}</Text>
           </View>
         </View>
         <View className="px-5 pb-1">
           <Button title={t("sealed.signIn")} mark="▸" onPress={onSignIn} isLoading={isSigningIn} />
         </View>
-        <FilmGrain />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-ground">
-      <TopBar title={edge} left={<BackButton accessibilityLabel={t("open.back")} onPress={onBack} />} />
+    <SafeAreaView className="flex-1 bg-paper">
+      <TopBar
+        tone="paper"
+        title={edge}
+        left={<BackButton accessibilityLabel={t("open.back")} onPress={onBack} tone="paper" />}
+      />
 
       <View className="flex-1">
-        <View className="mx-7.5 mt-2.5">
-          <RollEnvelope
-            dimmed={status !== "ready"}
-            title={envelope?.title ?? ""}
-            startsAt={envelope?.startsAt}
-            peopleCount={envelope?.peopleCount}
-            pickUpBy={envelope?.pickUpBy}
-            admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "participant" : undefined)}
-            // What joining gets them, pencilled under the ticked box. No code: there's nothing to scan here.
-            note={status === "ready" && envelope ? t(`open.note.${envelope.admits}`) : undefined}
-            stamp={
-              refused ? (
-                <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
-              ) : status === "ready" ? (
-                <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { organizer: organizerName })} />
-              ) : undefined
-            }
-            accessibilityLabel={envelope ? t("envelope.label", { title: envelope.title }) : t("envelope.labelLoading")}
-          />
-        </View>
+        <RollEnvelope
+          dimmed={status !== "ready"}
+          title={envelope?.title ?? ""}
+          startsAt={envelope?.startsAt}
+          pickUpBy={envelope?.pickUpBy}
+          admits={envelope?.admits ?? (refusal === "NOT_VALID" ? "participant" : undefined)}
+          stamp={
+            refused ? (
+              <Stamp title={refused.stamp} subtitle={refused.stampSub} tone="pencil" />
+            ) : status === "ready" ? (
+              <Stamp title={t("open.stamp")} subtitle={t("open.stampBy", { organizer: organizerName })} />
+            ) : undefined
+          }
+          accessibilityLabel={envelope ? t("envelope.label", { title: envelope.title }) : t("envelope.labelLoading")}
+        />
 
         {refused || status === "failed" ? (
-          <View className="mt-auto px-5 pb-4">
-            <Display variant="slip" dim={refused ? refused.dim : t("open.failedDim")}>
+          <View className="px-5 pb-4">
+            <Display variant="slip" dim={refused ? refused.dim : t("open.failedDim")} className="text-paper-ink">
               {refused ? refused.title : t("open.failedTitle")}
             </Display>
-            <Text className="mt-2 font-sans text-body text-text-2">{refused ? refused.body : failureMessage}</Text>
+            <Text className="mt-2 font-sans text-body text-paper-ink-2">{refused ? refused.body : failureMessage}</Text>
           </View>
         ) : null}
       </View>
@@ -212,7 +207,6 @@ const JoinEnvelopeScreen = () => {
           </>
         )}
       </View>
-      <FilmGrain />
     </SafeAreaView>
   );
 };

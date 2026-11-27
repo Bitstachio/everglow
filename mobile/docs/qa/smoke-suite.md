@@ -20,7 +20,7 @@ Run in order; later steps reuse what earlier ones created. IDs in brackets point
 | SM-01 | Cold launch while signed in lands on Home without a sign-in prompt                                                                                               | [AUTH-01]            | P1  |
 | SM-02 | Home lists your rolls in order (last day, open, upcoming, closed) and each opens                                                                                 | [HOME-01], [HOME-02] | P1  |
 | SM-03 | New event: name a roll, keep the defaults, Load the roll; the Loaded envelope appears (or, at the free limit, "Both rolls are in use" appears before any typing) | [NEW-02] / [NEW-08]  | P1  |
-| SM-04 | Send the envelope shows the QR code and Share the link opens the share sheet                                                                                     | [ENV-01], [ENV-03]   | P1  |
+| SM-04 | Send the envelope shows the QR code and Share link opens the share sheet                                                                                         | [ENV-01], [ENV-03]   | P1  |
 | SM-05 | On an open roll, the shutter picks 2 photos; both develop on the sheet and the band's storage goes up                                                            | [UP-01]              | P1  |
 | SM-06 | Tap a frame: the photo opens full screen; Save puts it in Photos                                                                                                 | [VIEW-01], [VIEW-07] | P1  |
 | SM-07 | Your own frame's menu offers Delete for everyone; deleting it removes it from the sheet                                                                          | [VIEW-03], [VIEW-06] | P1  |

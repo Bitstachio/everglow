@@ -5,11 +5,11 @@ import { useTranslation } from "react-i18next";
 type RollEnvelopeProps = {
   /** The roll's name. */
   title: string;
+  /** Who filled the envelope in: the organizer's display name (Send the envelope). */
+  from?: string;
   /** When the roll is, formatted: "Sat, 7 Nov, 19:00". */
   startsAt?: string;
-  /** Everyone on the roll, organizers included. */
-  peopleCount?: number;
-  /** When the photos go, formatted: "Sat, 14 Nov, then it’s gone". */
+  /** When the gallery ends, formatted: "Sat, 14 Nov, 19:00". */
   pickUpBy?: string;
   /** Which box is ticked: the participant or the viewer envelope. */
   admits?: "participant" | "viewer";
@@ -17,7 +17,7 @@ type RollEnvelopeProps = {
   sealed?: boolean;
   /** The QR code, at the bottom right. */
   code?: ReactNode;
-  /** A button at the foot of the paper (the organizer's Share the link). */
+  /** A button at the foot of the paper (the organizer's Share link). */
   action?: ReactNode;
   /** A pencilled note under the boxes, with an arrow to the ticked one (the organizer's envelope). */
   note?: string;
@@ -36,8 +36,8 @@ type RollEnvelopeProps = {
  */
 export const RollEnvelope = ({
   title,
+  from,
   startsAt,
-  peopleCount,
   pickUpBy,
   admits,
   sealed = false,
@@ -57,11 +57,8 @@ export const RollEnvelope = ({
     <LabEnvelope
       fields={[
         { label: t("paper.name"), value: title },
+        ...(from ? [{ label: t("paper.from"), value: from }] : []),
         { label: t("paper.date"), value: startsAt },
-        {
-          label: t("paper.people"),
-          value: peopleCount === undefined ? undefined : t("paper.peopleCount", { count: peopleCount }),
-        },
         { label: t("paper.pickUp"), value: pickUpBy },
       ]}
       options={[

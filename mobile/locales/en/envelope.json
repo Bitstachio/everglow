@@ -4,30 +4,22 @@
   "close": "Close the envelope",
   "ready": "Ready",
   "paper": {
-    "name": "Name",
-    "date": "Date",
-    "people": "In the event",
-    "peopleCount_one": "{{count}} person so far",
-    "peopleCount_other": "{{count}} people so far",
-    "pickUp": "Pick up by",
+    "name": "Event",
+    "from": "From",
+    "date": "Start",
+    "pickUp": "End",
     "participant": "Participant",
     "viewer": "Viewer"
   },
-  "note": {
-    "participant": "they add photos too",
-    "viewer": "they can only look and save"
-  },
   "pickUp": {
-    "until": "{{date}}, then it’s gone",
-    "never": "It stays open",
-    "gone": "{{date}}, gone"
+    "never": "It stays open"
   },
   "label": {
     "participant": "Participant envelope for {{title}}",
     "viewer": "Viewer envelope for {{title}}"
   },
   "share": {
-    "cta": "Share the link",
+    "cta": "Share link",
     "message": "{{title}} · join the event\n{{url}}",
     "failedTitle": "Couldn’t share the link"
   },

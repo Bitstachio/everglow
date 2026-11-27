@@ -24,3 +24,14 @@ test("honors disabled", async () => {
   await userEvent.setup().press(screen.getByRole("button", { name: "Close" }));
   expect(onPress).not.toHaveBeenCalled();
 });
+
+test("accepts the paper tone used on the envelope", async () => {
+  const onPress = jest.fn();
+  await render(
+    <IconButton accessibilityLabel="Close" tone="paper" onPress={onPress}>
+      <ThemedText>×</ThemedText>
+    </IconButton>,
+  );
+  await userEvent.setup().press(screen.getByRole("button", { name: "Close" }));
+  expect(onPress).toHaveBeenCalledTimes(1);
+});

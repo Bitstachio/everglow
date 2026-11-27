@@ -25,7 +25,9 @@ let mockRegenerating = false;
 jest.mock("../api/mutations", () => ({
   useRegenerateInviteMutation: () => ({ mutateAsync: mockRegenerate, isPending: mockRegenerating }),
 }));
-jest.mock("@/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-1" } }) }));
+jest.mock("@/context/auth-context", () => ({
+  useAuth: () => ({ user: { id: "user-1", details: { name: "Ada Lovelace" } } }),
+}));
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 let mockCanGoBack = true;
@@ -62,11 +64,10 @@ test("fills the participant envelope in first", async () => {
   expect(result.current.edge).toBe("Envelope · Nadia turns 30");
   expect(result.current.envelope).toEqual({
     title: "Nadia turns 30",
+    from: "Ada Lovelace",
     startsAt: "Sat, 7 Nov, 19:00",
-    peopleCount: 18,
-    pickUpBy: "Sat, 14 Nov, then it’s gone",
+    pickUpBy: "Sat, 14 Nov, 19:00",
     admits: "participant",
-    note: "they add photos too",
     accessibilityLabel: "Participant envelope for Nadia turns 30",
   });
   expect(result.current.invitationUrl).toBe("https://events.everglow.app/invite/weekend");
@@ -223,7 +224,7 @@ test("05.6 a closed roll's envelope is shut, with the day its photos went", asyn
     stampLine: "No new guests",
     date: "Mon, 21 Sep",
   });
-  expect(result.current.envelope).toMatchObject({ admits: "participant", pickUpBy: "Mon, 21 Sep, gone" });
+  expect(result.current.envelope).toMatchObject({ admits: "participant", pickUpBy: "Mon, 21 Sep, 12:00" });
   expect(result.current.invitationUrl).toBeNull();
 });
 

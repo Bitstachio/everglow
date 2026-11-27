@@ -57,20 +57,18 @@ export const useEnvelopeScreen = () => {
 
   const pickUpBy = () => {
     if (!event) return undefined;
-    if (state === "closed") return t("pickUp.gone", { date: formatDate(closedOn(event)) });
-    return event.galleryClosesAt ? t("pickUp.until", { date: formatDate(event.galleryClosesAt) }) : t("pickUp.never");
+    if (state === "closed") return formatDateTime(closedOn(event));
+    return event.galleryClosesAt ? formatDateTime(event.galleryClosesAt) : t("pickUp.never");
   };
 
   const envelope =
     event && isOrganizer
       ? {
           title: event.title,
+          from: user?.details?.name,
           startsAt: formatDateTime(event.date),
-          peopleCount: event.usage.members,
           pickUpBy: pickUpBy(),
           admits: shown,
-          // A closed or held envelope admits nobody, so there is nothing to pencil in.
-          note: isOpen ? t(`note.${shown}`) : undefined,
           accessibilityLabel: t(`label.${shown}`, { title: event.title }),
         }
       : null;

@@ -52,11 +52,11 @@ test("a printed action at the foot of the paper is a button", async () => {
   await render(
     <LabEnvelope
       fields={[{ label: "Name", value: "Test" }]}
-      action={<PaperButton title="Share the link" mark="↗" onPress={onPress} />}
+      action={<PaperButton title="Share link" mark="↗" onPress={onPress} />}
       accessibilityLabel="Invite"
     />,
   );
-  await userEvent.setup().press(screen.getByRole("button", { name: "Share the link" }));
+  await userEvent.setup().press(screen.getByRole("button", { name: "Share link" }));
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 

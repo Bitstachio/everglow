@@ -76,16 +76,15 @@ beforeEach(() => {
 });
 
 describe("06.4 The envelope", () => {
-  test("shows whose event it is, who's on it, when to pick up, and what it admits", async () => {
+  test("shows whose event it is, when it starts and ends, and what it admits", async () => {
     await renderScreen();
 
     expect(await screen.findByText("Sam & Jo’s wedding")).toBeOnTheScreen();
     expect(screen.getByText("Sun, 18 Oct, 16:00")).toBeOnTheScreen();
-    expect(screen.getByText("24 people so far")).toBeOnTheScreen();
-    expect(screen.getByText("Tue, 17 Nov, then it’s gone")).toBeOnTheScreen();
-    // Nothing to scan on the invitee's envelope; a pencil note says what joining gets them.
+    expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
+    // Nothing to scan on the invitee's envelope.
+
     expect(screen.queryByLabelText(/^QR code/)).not.toBeOnTheScreen();
-    expect(screen.getByText("you add photos too", { includeHiddenElements: true })).toBeOnTheScreen();
     // Stamped on the card: who invited you.
     expect(stampText("Invited")).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
@@ -102,7 +101,6 @@ describe("06.4 The envelope", () => {
     await renderScreen();
 
     expect(await screen.findByRole("button", { name: "Join to look" })).toBeOnTheScreen();
-    expect(screen.getByText("you look and save", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(stampText("by Sam")).toBeOnTheScreen();
   });
 
@@ -242,7 +240,7 @@ describe("Refusals", () => {
     expect(stampText("Not valid")).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Envelope" })).toBeOnTheScreen();
     // Nothing is filled in on an envelope that doesn't open.
-    expect(screen.queryByText(/so far|then it’s gone/)).not.toBeOnTheScreen();
+    expect(screen.queryByText(/so far/)).not.toBeOnTheScreen();
 
     await press("Scan another");
     expect(mockRouter.replace).toHaveBeenCalledWith("/join");
@@ -267,7 +265,7 @@ describe("Refusals", () => {
 
     expect(await screen.findByText("The event closed on Tue, 17 Nov and its photos were removed.")).toBeOnTheScreen();
     // Past the pick-up date, the envelope says it's gone.
-    expect(screen.getByText("Tue, 17 Nov, gone")).toBeOnTheScreen();
+    expect(screen.getByText("Tue, 17 Nov, 16:00")).toBeOnTheScreen();
     expect(stampText("Closed")).toBeOnTheScreen();
   });
 
