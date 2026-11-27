@@ -4,6 +4,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEventPhotosQuery, useEventQuery } from "../api/queries";
 import {
   cancelTray,
+  localFileFor,
   openTraySession,
   reconcileTrayPhotos,
   removeFromTray,
@@ -33,7 +34,9 @@ export const useUploadTrayScreen = () => {
     title: event?.title ?? "",
     entries: tray.items.map((item) => {
       const status = item.status;
-      const thumbnail = status.kind === "developed" ? thumbnails.get(status.photoId) : undefined;
+      // A copy of a frame already on the roll shows that frame.
+      const photoId = status.kind === "developed" || status.kind === "onRoll" ? status.photoId : undefined;
+      const thumbnail = photoId ? thumbnails.get(photoId) : undefined;
       // The roll can release a completed local file once its thumbnail loads.
       const previewable = visible && !(status.kind === "rejected" && status.reason === "video");
       const progress =
@@ -42,9 +45,11 @@ export const useUploadTrayScreen = () => {
           : undefined;
       // The roll's thumbnail under the same stable key the sheet caches it by;
       // otherwise the local file, which the row decodes at its own small size.
-      const photoId = status.kind === "developed" ? status.photoId : undefined;
+      // A copy's local file is released as soon as the roll says it has it.
       const cacheKey = previewable && thumbnail && photoId ? `photo:${photoId}:thumbnail` : undefined;
-      return { ...item, uri: previewable ? (thumbnail ?? item.uri) : "", cacheKey, progress };
+      // Until the list has the kept frame (picked twice in one go), its own local file stands in.
+      const local = status.kind === "onRoll" ? ((photoId && localFileFor(photoId)) ?? "") : item.uri;
+      return { ...item, uri: previewable ? (thumbnail ?? local) : "", cacheKey, progress };
     }),
     summary: summarizeTray(tray),
     onBack: () => (router.canGoBack() ? router.back() : eventId && router.replace(`/events/${eventId}`)),

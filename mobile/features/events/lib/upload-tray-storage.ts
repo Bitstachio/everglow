@@ -6,6 +6,7 @@ const status = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("waiting") }),
   z.object({ kind: z.literal("sending"), bytesSent: z.number() }),
   z.object({ kind: z.literal("developed"), photoId: z.string() }),
+  z.object({ kind: z.literal("onRoll"), photoId: z.string().optional() }),
   z.object({
     kind: z.literal("failed"),
     reason: z.enum(["connection", "refused", "noRoom", "closed", "interrupted", "missing", "cantAdd"]),
@@ -95,6 +96,10 @@ export const restoreUploadTrays = (userId: string): Map<string, Tray> => {
             ...tray,
             running: false,
             items: tray.items
+              // A copy the roll already had is finished and its file released:
+              // saved before its run ended, it would otherwise come back with
+              // nothing that could clear it.
+              .filter((entry) => entry.status.kind !== "onRoll")
               .filter(
                 (entry) =>
                   entry.status.kind === "rejected" ||

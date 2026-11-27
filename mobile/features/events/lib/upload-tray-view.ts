@@ -6,6 +6,8 @@ export type TraySummary = {
   /** Files that can go: everything but the rejected. */
   sendable: number;
   developed: number;
+  /** Already on the roll from this person: done, but not a new frame. */
+  onRoll: number;
   /** Waiting or sending. */
   inFlight: number;
   /** Failed for a reason retrying can fix. */
@@ -21,6 +23,7 @@ export const summarizeTray = (tray: Tray): TraySummary => {
   const summary: TraySummary = {
     sendable: 0,
     developed: 0,
+    onRoll: 0,
     inFlight: 0,
     retryable: 0,
     offline: 0,
@@ -40,6 +43,7 @@ export const summarizeTray = (tray: Tray): TraySummary => {
     }
     summary.sendable += 1;
     if (status.kind === "developed") summary.developed += 1;
+    else if (status.kind === "onRoll") summary.onRoll += 1;
     else if (status.kind === "waiting" || status.kind === "sending") summary.inFlight += 1;
     else if (status.reason === "noRoom") summary.noRoom += 1;
     else if (status.reason === "closed") summary.closed += 1;
@@ -83,7 +87,8 @@ const sheetOrder = (a: TrayItem, b: TrayItem): number => {
 /**
  * The tray's photos at the top of the sheet, in the order the roll will list
  * them once they land, until the roll's own photos include them. Rejected
- * files never reach the sheet.
+ * files never reach the sheet, and neither does a copy of a frame the roll
+ * already has: that frame stays where it is.
  */
 export const developingFrames = (
   items: TrayItem[],
@@ -92,7 +97,12 @@ export const developingFrames = (
 ): DevelopingFrame[] => {
   const onRoll = new Set(photos.map((photo) => photo.id));
   const pending = items
-    .filter(({ status }) => status.kind !== "rejected" && !(status.kind === "developed" && onRoll.has(status.photoId)))
+    .filter(
+      ({ status }) =>
+        status.kind !== "rejected" &&
+        status.kind !== "onRoll" &&
+        !(status.kind === "developed" && onRoll.has(status.photoId)),
+    )
     .sort(sheetOrder);
   return pending.map((item, index) => ({
     item,
