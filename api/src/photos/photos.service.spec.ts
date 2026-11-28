@@ -763,6 +763,130 @@ describe("PhotosService", () => {
       );
     });
 
+    it("narrows READY photos to one uploader when addedById has a single id", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+      const uploaderId = "22222222-2222-2222-2222-222222222222";
+
+      await service.listPhotos(eventId, callerId, { addedById: [uploaderId] });
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [{ eventId, status: "READY", addedById: uploaderId }, expect.anything(), visibilityWhere],
+          },
+        }),
+      );
+    });
+
+    it("narrows READY photos to several uploaders when addedById has many ids", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+      const uploaders = ["22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333"];
+
+      await service.listPhotos(eventId, callerId, { addedById: uploaders });
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [{ eventId, status: "READY", addedById: { in: uploaders } }, expect.anything(), visibilityWhere],
+          },
+        }),
+      );
+    });
+
+    it("narrows READY photos by inclusive upload-time bounds", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+      const createdAfter = "2026-11-01T00:00:00.000Z";
+      const createdBefore = "2026-11-02T23:59:59.999Z";
+
+      await service.listPhotos(eventId, callerId, { createdAfter, createdBefore });
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              {
+                eventId,
+                status: "READY",
+                createdAt: { gte: new Date(createdAfter), lte: new Date(createdBefore) },
+              },
+              expect.anything(),
+              visibilityWhere,
+            ],
+          },
+        }),
+      );
+    });
+
+    it("narrows READY photos to uploaders with a current role on the event", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+
+      await service.listPhotos(eventId, callerId, { addedByRole: ["ORGANIZER", "PARTICIPANT"] });
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              {
+                eventId,
+                status: "READY",
+                addedBy: {
+                  eventAccesses: {
+                    some: { eventId, accessLevel: { in: ["ORGANIZER", "PARTICIPANT"] } },
+                  },
+                },
+              },
+              expect.anything(),
+              visibilityWhere,
+            ],
+          },
+        }),
+      );
+    });
+
+    it("combines uploader, upload-time and role filters", async () => {
+      prisma.user.findUnique.mockResolvedValue(callerWithDetails);
+      prisma.event.findUnique.mockResolvedValue(eventWithAccess([callerAccess("VIEWER")]) as never);
+      prisma.photo.findMany.mockResolvedValue([]);
+      const uploaderId = "22222222-2222-2222-2222-222222222222";
+      const createdAfter = "2026-11-01T00:00:00.000Z";
+
+      await service.listPhotos(eventId, callerId, {
+        addedById: [uploaderId],
+        createdAfter,
+        addedByRole: ["PARTICIPANT"],
+      });
+
+      expect(prisma.photo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            AND: [
+              {
+                eventId,
+                status: "READY",
+                addedById: uploaderId,
+                createdAt: { gte: new Date(createdAfter) },
+                addedBy: {
+                  eventAccesses: {
+                    some: { eventId, accessLevel: { in: ["PARTICIPANT"] } },
+                  },
+                },
+              },
+              expect.anything(),
+              visibilityWhere,
+            ],
+          },
+        }),
+      );
+    });
+
     it("narrows the page to the photos visible to the caller in that event", async () => {
       prisma.user.findUnique.mockResolvedValue(callerWithDetails);
       const loadedEvent = eventWithAccess([callerAccess("VIEWER")]);

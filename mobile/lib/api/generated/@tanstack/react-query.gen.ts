@@ -680,7 +680,7 @@ export const photosControllerListPhotosQueryKey = (options: Options<PhotosContro
 /**
  * List ready photos in an event (cursor-paginated)
  *
- * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.
+ * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included. Optional filters: addedById (uploaders), createdAfter/createdBefore (upload time), addedByRole (uploader's current role on the event). Filters combine with AND; empty matches return an empty page.
  */
 export const photosControllerListPhotosOptions = (options: Options<PhotosControllerListPhotosData>) =>
   queryOptions<
@@ -740,7 +740,7 @@ export const photosControllerListPhotosInfiniteQueryKey = (
 /**
  * List ready photos in an event (cursor-paginated)
  *
- * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.
+ * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included. Optional filters: addedById (uploaders), createdAfter/createdBefore (upload time), addedByRole (uploader's current role on the event). Filters combine with AND; empty matches return an empty page.
  */
 export const photosControllerListPhotosInfiniteOptions = (options: Options<PhotosControllerListPhotosData>) => {
   const opts = infiniteQueryOptions<

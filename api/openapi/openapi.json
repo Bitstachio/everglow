@@ -701,7 +701,7 @@
     },
     "/api/v2/events/{eventId}/photos": {
       "get": {
-        "description": "Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.",
+        "description": "Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included. Optional filters: addedById (uploaders), createdAfter/createdBefore (upload time), addedByRole (uploader's current role on the event). Filters combine with AND; empty matches return an empty page.",
         "operationId": "PhotosController_listPhotos",
         "parameters": [
           {
@@ -731,6 +731,51 @@
               "maximum": 100,
               "default": 50,
               "type": "number"
+            }
+          },
+          {
+            "name": "addedById",
+            "required": false,
+            "in": "query",
+            "description": "Only photos these people added (OR). Same visibility, order and paging as the full list. Works for former members whose photos were kept. Blocked uploaders, or ids with no photos the caller can see, yield an empty page. Omit for everyone.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "name": "createdAfter",
+            "required": false,
+            "in": "query",
+            "description": "Inclusive lower bound on Photo.createdAt (when the photo was uploaded to Everglow, not camera capture time). Clients usually send the start of the first selected calendar day.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "createdBefore",
+            "required": false,
+            "in": "query",
+            "description": "Inclusive upper bound on Photo.createdAt (upload time). Clients usually send the end of the last selected calendar day.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "addedByRole",
+            "required": false,
+            "in": "query",
+            "description": "Only photos whose uploader currently has one of these roles on the event (OR). Photos with no uploader (deleted account) or no remaining membership are excluded. Omit for any role.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/AccessLevel"
+              }
             }
           }
         ],
@@ -3890,6 +3935,14 @@
           "nextCursor"
         ]
       },
+      "AccessLevel": {
+        "type": "string",
+        "enum": [
+          "ORGANIZER",
+          "PARTICIPANT",
+          "VIEWER"
+        ]
+      },
       "ReportTargetType": {
         "type": "string",
         "enum": [
@@ -4307,15 +4360,6 @@
           "token",
           "platform"
         ]
-      },
-      "AccessLevel": {
-        "type": "string",
-        "enum": [
-          "ORGANIZER",
-          "PARTICIPANT",
-          "VIEWER"
-        ],
-        "description": "The caller's role on this event. Present on every event response the caller can read."
       },
       "EventInviteResponseDto": {
         "type": "object",
