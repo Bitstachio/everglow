@@ -359,7 +359,7 @@ export class PhotosService {
     const photos = await this.prisma.photo.findMany({
       where: {
         AND: [
-          { eventId, status: PhotoStatus.READY },
+          this.listPhotosScope(eventId, query),
           accessibleBy(ability, PHOTO_ACTIONS.READ).ofType(PHOTO_SUBJECT) as Prisma.PhotoWhereInput,
           // Reported and blocked photos drop out here (docs/moderation.md).
           await this.photoVisibilityService.whereVisibleTo(callerId, event),
@@ -375,6 +375,45 @@ export class PhotosService {
     const items = await Promise.all(page.items.map((photo) => this.withDownloadUrls(photo)));
 
     return { items, nextCursor: page.nextCursor };
+  }
+
+  /**
+   * READY photos in the event, optionally narrowed by uploader, upload-time
+   * range, and the uploader's current role. Visibility / CASL still apply on
+   * top, so a blocked uploader yields an empty page rather than an error.
+   */
+  private listPhotosScope(eventId: string, query: ListPhotosQueryDto): Prisma.PhotoWhereInput {
+    const addedByIds = query.addedById;
+    const roles = query.addedByRole;
+    const createdAt: Prisma.DateTimeFilter | undefined =
+      query.createdAfter || query.createdBefore
+        ? {
+            ...(query.createdAfter ? { gte: new Date(query.createdAfter) } : {}),
+            ...(query.createdBefore ? { lte: new Date(query.createdBefore) } : {}),
+          }
+        : undefined;
+
+    return {
+      eventId,
+      status: PhotoStatus.READY,
+      // One or many uploaders; former members still match by id alone.
+      ...(addedByIds?.length === 1
+        ? { addedById: addedByIds[0] }
+        : addedByIds && addedByIds.length > 1
+          ? { addedById: { in: addedByIds } }
+          : {}),
+      ...(createdAt ? { createdAt } : {}),
+      // Current EventAccess only: deleted accounts and former members drop out.
+      ...(roles?.length
+        ? {
+            addedBy: {
+              eventAccesses: {
+                some: { eventId, accessLevel: { in: roles } },
+              },
+            },
+          }
+        : {}),
+    };
   }
 
   async findOne(photoId: string, callerId: string): Promise<PhotoWithUrl> {

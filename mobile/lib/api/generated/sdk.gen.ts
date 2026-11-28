@@ -453,7 +453,7 @@ export const photosControllerConfirmUploads = <ThrowOnError extends boolean = fa
 /**
  * List ready photos in an event (cursor-paginated)
  *
- * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included.
+ * Empty once the event's gallery has closed (galleryState CLOSED), for every member, organizers included. Optional filters: addedById (uploaders), createdAfter/createdBefore (upload time), addedByRole (uploader's current role on the event). Filters combine with AND; empty matches return an empty page.
  */
 export const photosControllerListPhotos = <ThrowOnError extends boolean = false>(
   options: Options<PhotosControllerListPhotosData, ThrowOnError>,

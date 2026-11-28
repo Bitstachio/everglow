@@ -257,6 +257,8 @@ export type PhotoListResponseDto = {
   nextCursor: string | null;
 };
 
+export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
+
 export type ReportTargetType = "PHOTO" | "MEMBER" | "EVENT";
 
 export type ReportReason =
@@ -431,11 +433,6 @@ export type RegisterDeviceDto = {
    */
   locale?: string;
 };
-
-/**
- * The caller's role on this event. Present on every event response the caller can read.
- */
-export type AccessLevel = "ORGANIZER" | "PARTICIPANT" | "VIEWER";
 
 export type EventInviteResponseDto = {
   accessLevel: AccessLevel;
@@ -1475,6 +1472,22 @@ export type PhotosControllerListPhotosData = {
      */
     cursor?: string;
     limit?: number;
+    /**
+     * Only photos these people added (OR). Same visibility, order and paging as the full list. Works for former members whose photos were kept. Blocked uploaders, or ids with no photos the caller can see, yield an empty page. Omit for everyone.
+     */
+    addedById?: Array<string>;
+    /**
+     * Inclusive lower bound on Photo.createdAt (when the photo was uploaded to Everglow, not camera capture time). Clients usually send the start of the first selected calendar day.
+     */
+    createdAfter?: string;
+    /**
+     * Inclusive upper bound on Photo.createdAt (upload time). Clients usually send the end of the last selected calendar day.
+     */
+    createdBefore?: string;
+    /**
+     * Only photos whose uploader currently has one of these roles on the event (OR). Photos with no uploader (deleted account) or no remaining membership are excluded. Omit for any role.
+     */
+    addedByRole?: Array<AccessLevel>;
   };
   url: "/api/v2/events/{eventId}/photos";
 };
